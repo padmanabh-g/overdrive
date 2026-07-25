@@ -200,11 +200,12 @@ function addWindowWrap(
   lot: { x: number; z: number; width: number; depth: number; height: number },
   materials: CityMaterials,
 ): void {
+  // Each plane's normal must point away from the shell, or it is backface-culled.
   const faces = [
-    { x: lot.x, z: lot.z - lot.depth / 2 - 0.015, width: lot.width, rotation: 0 },
-    { x: lot.x, z: lot.z + lot.depth / 2 + 0.015, width: lot.width, rotation: Math.PI },
-    { x: lot.x - lot.width / 2 - 0.015, z: lot.z, width: lot.depth, rotation: Math.PI / 2 },
-    { x: lot.x + lot.width / 2 + 0.015, z: lot.z, width: lot.depth, rotation: -Math.PI / 2 },
+    { x: lot.x, z: lot.z - lot.depth / 2 - 0.015, width: lot.width, rotation: Math.PI },
+    { x: lot.x, z: lot.z + lot.depth / 2 + 0.015, width: lot.width, rotation: 0 },
+    { x: lot.x - lot.width / 2 - 0.015, z: lot.z, width: lot.depth, rotation: -Math.PI / 2 },
+    { x: lot.x + lot.width / 2 + 0.015, z: lot.z, width: lot.depth, rotation: Math.PI / 2 },
   ];
 
   for (const face of faces) {
@@ -223,7 +224,7 @@ function addNeonStack(
   lot: { x: number; z: number; width: number; depth: number; height: number },
   animatedSigns: Array<Mesh<PlaneGeometry, MeshBasicMaterial>>,
 ): void {
-  if (lot.height < look.buildings.minHeight + 5 || random() < 0.35) {
+  if (lot.height < look.buildings.minHeight + 5 || random() < 0.1) {
     return;
   }
 
@@ -248,11 +249,11 @@ function addNeonStack(
     if (face === "z") {
       sign.position.x = lot.x + (random() - 0.5) * lot.width * 0.45;
       sign.position.z = lot.z + direction * (lot.depth / 2 + 0.08);
-      sign.rotation.y = direction > 0 ? Math.PI : 0;
+      sign.rotation.y = direction > 0 ? 0 : Math.PI;
     } else {
       sign.position.x = lot.x + direction * (lot.width / 2 + 0.08);
       sign.position.z = lot.z + (random() - 0.5) * lot.depth * 0.45;
-      sign.rotation.y = direction > 0 ? -Math.PI / 2 : Math.PI / 2;
+      sign.rotation.y = direction > 0 ? Math.PI / 2 : -Math.PI / 2;
     }
 
     animatedSigns.push(sign);

@@ -27,6 +27,7 @@ export type CityLook = {
     hemiIntensity: number;
     keyColor: string;
     keyIntensity: number;
+    envIntensity: number;
   };
   ground: {
     width: number;
@@ -74,7 +75,7 @@ export type CityLook = {
 export const cityLook: CityLook = {
   fog: {
     color: "#07111b",
-    density: 0.024,
+    density: 0.0075,
   },
   toneMapping: {
     exposure: 1.28,
@@ -100,6 +101,7 @@ export const cityLook: CityLook = {
     hemiIntensity: 0.74,
     keyColor: "#a8e8ff",
     keyIntensity: 1.85,
+    envIntensity: 0.13,
   },
   ground: {
     width: 180,
@@ -114,17 +116,17 @@ export const cityLook: CityLook = {
     blockSize: 18,
     rows: 8,
     columns: 7,
-    minHeight: 12,
-    maxHeight: 46,
+    minHeight: 16,
+    maxHeight: 58,
     baseColor: "#111722",
     windowEmissive: "#ffe8b4",
     windowIntensity: 1.85,
   },
   neon: {
     intensity: 3.8,
-    signWidth: 2.3,
-    signHeight: 7.2,
-    signsPerTallBuilding: 3,
+    signWidth: 3.2,
+    signHeight: 9,
+    signsPerTallBuilding: 5,
     colors: ["#ff2f8f", "#00e5ff", "#ffd23f", "#48ff7b", "#9157ff", "#ff5a36"],
     copy: ["ラーメン", "カラオケ", "ゲーム", "シネマ", "バー", "寿司", "渋谷", "ライブ"],
   },

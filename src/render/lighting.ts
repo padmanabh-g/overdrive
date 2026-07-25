@@ -5,9 +5,11 @@ import {
   DirectionalLight,
   FogExp2,
   HemisphereLight,
+  PMREMGenerator,
   Scene,
   WebGLRenderer,
 } from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 
 import { cityLook, type CityLook } from "../city/look";
 
@@ -37,6 +39,11 @@ export function createCityLighting(scene: Scene, renderer: WebGLRenderer, look: 
 
   scene.add(ambient, hemisphere, key);
 
+  // Without an environment the 0.78-metalness asphalt has nothing to reflect and renders pure black.
+  const pmrem = new PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
+
   const applyLook = (nextLook: CityLook = look) => {
     scene.background = new Color(nextLook.fog.color);
     scene.fog = new FogExp2(nextLook.fog.color, nextLook.fog.density);
@@ -52,6 +59,7 @@ export function createCityLighting(scene: Scene, renderer: WebGLRenderer, look: 
     hemisphere.intensity = nextLook.lighting.hemiIntensity;
     key.color.set(nextLook.lighting.keyColor);
     key.intensity = nextLook.lighting.keyIntensity;
+    scene.environmentIntensity = nextLook.lighting.envIntensity;
   };
 
   applyLook(look);
