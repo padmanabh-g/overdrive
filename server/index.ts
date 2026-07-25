@@ -1,5 +1,5 @@
 import Fastify from 'fastify'
-import { cityDirector, integrations, probe, rail, weather } from './logic'
+import { cityDirector, integrations, probe, rail, weather, type DirectorInput } from './logic'
 
 const app = Fastify({ logger: false })
 
@@ -7,10 +7,7 @@ app.get('/api/health', async () => ({ ok: true, integrations: integrations() }))
 app.get('/api/weather', weather)
 app.get('/api/rail', async () => rail())
 
-app.post('/api/city-director', async (req) => {
-  const { condition } = (req.body ?? {}) as { condition?: string }
-  return cityDirector(condition)
-})
+app.post('/api/city-director', async (req) => cityDirector((req.body ?? {}) as DirectorInput))
 
 app.post('/api/probe', async () => probe())
 

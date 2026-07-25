@@ -67,17 +67,76 @@ export function rail() {
   }
 }
 
-/** ai& — the City Director. Fixture until credentials arrive. */
-export async function cityDirector(condition?: string) {
+export type DirectorInput = {
+  condition?: string
+  tempC?: number
+  precipMm?: number
+  windKph?: number
+}
+
+const DIRECTOR_SYSTEM = [
+  'You are the City Director of a live simulation of Shibuya, Tokyo, at night.',
+  'Given the current real conditions, write ONE line describing how the city and its',
+  'crowds are reacting right now. Format: a short Japanese word or phrase, an em dash,',
+  'then one English sentence under 16 words. Concrete and physical — what bodies in the',
+  'street are doing. No preamble, no quotes, no explanation. Output only the line.',
+].join(' ')
+
+/**
+ * ai& — the City Director. OpenAI-compatible, so plain fetch; no SDK needed.
+ * Any failure or slow response falls back to the fixture: the game loop calls this,
+ * so it must never hang and must never throw.
+ */
+export async function cityDirector(input: DirectorInput = {}) {
   const key = process.env.AI_AND_API_KEY
   const baseUrl = process.env.AI_AND_BASE_URL
+  const model = process.env.AI_AND_MODEL
 
-  if (!key || !baseUrl) {
-    return { source: 'fixture', live: false, line: fixtureNarration(condition) }
+  if (!key || !baseUrl || !model) {
+    return { source: 'fixture', live: false, line: fixtureNarration(input.condition) }
   }
 
-  // Confirm ai&'s API contract at the workshop before trusting this shape.
-  return { source: 'ai&', live: false, line: fixtureNarration(condition) }
+  const facts = [
+    `event: ${input.condition ?? 'normal'}`,
+    input.tempC !== undefined ? `temperature: ${input.tempC.toFixed(0)}C` : null,
+    input.precipMm !== undefined ? `precipitation: ${input.precipMm}mm` : null,
+    input.windKph !== undefined ? `wind: ${input.windKph.toFixed(0)}km/h` : null,
+  ]
+    .filter(Boolean)
+    .join(', ')
+
+  try {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(6000),
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: DIRECTOR_SYSTEM },
+          { role: 'user', content: facts },
+        ],
+        temperature: 1,
+        max_tokens: 120,
+        // No reasoning_effort: DeepSeek then spends the whole budget on a `reasoning`
+        // field and returns content: null. One short line needs no reasoning pass.
+        stream: false,
+      }),
+    })
+
+    if (!res.ok) throw new Error(`ai& ${res.status} ${(await res.text()).slice(0, 200)}`)
+
+    const data = (await res.json()) as {
+      choices?: { message?: { content?: string } }[]
+    }
+    const line = data.choices?.[0]?.message?.content?.trim()
+    if (!line) throw new Error('ai& returned no content')
+
+    return { source: 'ai&', live: true, model, line: line.replace(/^["'`]|["'`]$/g, '') }
+  } catch (err) {
+    console.warn('[city-director] falling back to fixture:', String(err))
+    return { source: 'fixture', live: false, line: fixtureNarration(input.condition) }
+  }
 }
 
 /** Daytona — the Probe sandbox. Fixture until credentials arrive. */

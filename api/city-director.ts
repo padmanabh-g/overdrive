@@ -1,7 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { cityDirector } from '../server/logic'
+import { cityDirector, type DirectorInput } from '../server/logic'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { condition } = (req.body ?? {}) as { condition?: string }
-  res.json(await cityDirector(condition))
+  res.json(await cityDirector((req.body ?? {}) as DirectorInput))
 }
