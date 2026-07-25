@@ -18,7 +18,7 @@ each an atomic commit that builds green (`bun run typecheck`) before push.
   begin-run user gesture) + procedural Web Audio one-shot SFX (no asset files).
   `audio.sfx(name)` API used by T1–T3. Wire `audio.startMusic()` in `main.ts`.
   SFX set: `punch, pickup, beer, steal, recover, cop, redlight, win, lose, surge`.
-- [ ] **T1 — Crowd hazards.** `crowd.ts`: `sleep` mode (prone matrix, counts double
+- [x] **T1 — Crowd hazards.** `crowd.ts`: `sleep` mode (prone matrix, counts double
   in `dragAt` → friction), `drunk` mode (huge weave + dir-flips, sets `hitByDrunk`
   on player contact), export `SQUARE`. `player.ts`: `stagger(s)`. `main.ts`:
   red-light rule (inside `SQUARE` while `!signal.walk` → drag boost), apply stagger + sfx.

@@ -4,7 +4,7 @@ import { cityLook } from './city/look'
 import { createCityLighting, createRenderPipeline } from './render'
 import { feeds, isRaining, type Rail, type Weather } from './data/feeds'
 import { audio } from './audio/audio'
-import { Crowd } from './game/crowd'
+import { Crowd, SQUARE } from './game/crowd'
 import { Player } from './game/player'
 import { Run } from './game/run'
 import { TrafficSignals } from './game/signals'
@@ -61,6 +61,7 @@ let rail: Rail = { source: 'pending', live: false, lines: [] }
 let density = 0.5
 let drag = 0
 let raining = false
+let wasOnRed = false
 
 function setRaining(next: boolean): void {
   raining = next
@@ -121,9 +122,19 @@ function frame(): void {
 
   drag = crowd.dragAt(player.position)
 
-  player.update(dt, city.colliders, bounds, drag)
+  // Crossing on red is friction, not damage — the crowd hems the courier in.
+  const onRed =
+    !crowd.signal.walk && Math.abs(player.position.x) < SQUARE && Math.abs(player.position.z) < SQUARE
+  if (onRed && !wasOnRed) audio.sfx('redlight')
+  wasOnRed = onRed
+
+  player.update(dt, city.colliders, bounds, Math.min(1, drag + (onRed ? 0.5 : 0)))
   player.updateCamera(camera, dt)
   crowd.update(dt, player.position, density)
+  if (crowd.hitByDrunk) {
+    player.stagger(0.5)
+    audio.sfx('beer')
+  }
   signals.update(crowd.signal)
   city.update(dt, elapsed)
 

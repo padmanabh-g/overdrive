@@ -17,6 +17,7 @@ export class Player {
   private readonly keys = new Set<string>()
   private readonly camPos = new THREE.Vector3()
   private readonly camTarget = new THREE.Vector3()
+  private staggerT = 0
 
   constructor() {
     this.mesh = new THREE.Group()
@@ -48,6 +49,11 @@ export class Player {
     return this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')
   }
 
+  /** A drunkard's bump knocks the courier woozy for a few seconds. */
+  stagger(seconds: number): void {
+    this.staggerT = Math.max(this.staggerT, seconds)
+  }
+
   /** `drag` is 0..1 crowd resistance — dense crowds make the courier wade. */
   update(dt: number, colliders: THREE.Box3[], bounds: { x: number; z: number }, drag: number): void {
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw))
@@ -59,7 +65,10 @@ export class Player {
     if (this.keys.has('KeyD')) wish.add(right)
     if (this.keys.has('KeyA')) wish.sub(right)
 
-    const speed = (this.sprinting ? SPRINT : WALK) * (1 - 0.72 * drag)
+    this.staggerT = Math.max(0, this.staggerT - dt)
+    const staggered = this.staggerT > 0
+    const speed =
+      (staggered || !this.sprinting ? WALK : SPRINT) * (1 - 0.72 * drag) * (staggered ? 0.5 : 1)
     if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed)
 
     this.velocity.lerp(wish, Math.min(1, ACCEL * dt * 0.05))

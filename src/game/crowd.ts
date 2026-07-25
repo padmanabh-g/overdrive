@@ -5,6 +5,7 @@ import type { Lane, Streets } from './streets'
 const JACKETS = [0x2c3346, 0x3a2a3d, 0x2b3a2e, 0x4a2f2a, 0x1e2a3a, 0x3d3540, 0x2a3540]
 
 const PUSH_RADIUS = 2.6
+const CONTACT_RADIUS = 1.4 // drunkard has to actually bump you to stagger
 const DRAG_RADIUS = 7
 const LANE_JITTER = 1.2
 
@@ -20,7 +21,7 @@ const PAUSE_MAX = 4.0
 // corridors — they wait at the curbs, then on green pour across to a *different* edge,
 // so paths cross diagonally in the middle. This is the signature Shibuya read.
 const CROSSER_FRACTION = 0.5
-const SQUARE = 22 // half-extent of the open crossing, world units (curbs sit here)
+export const SQUARE = 22 // half-extent of the open crossing, world units (curbs sit here)
 export const CROSS_WALK = 11 // green seconds
 export const CROSS_WAIT = 7 // red seconds
 const CROSS_STAGGER = 1.6 // max random delay after green so the flood isn't a lockstep pulse
@@ -28,7 +29,7 @@ const CROSS_STAGGER = 1.6 // max random delay after green so the flood isn't a l
 const UP = new THREE.Vector3(0, 1, 0)
 
 type Npc = {
-  mode: 'lane' | 'cross'
+  mode: 'lane' | 'cross' | 'sleep'
   px: number // resolved world position, written by update, read by draw/drag
   pz: number
   yaw: number // facing, so the crowd isn't all oriented the same way
@@ -39,6 +40,7 @@ type Npc = {
   phase: number
   baseSpeed: number
   surge: boolean
+  drunk: boolean
 
   // lane mode
   lane: Lane
@@ -64,11 +66,17 @@ type Npc = {
 export class Crowd {
   readonly mesh: THREE.InstancedMesh
   readonly umbrellas: THREE.InstancedMesh
+  hitByDrunk = false
   private readonly npcs: Npc[] = []
   private readonly matrix = new THREE.Matrix4()
   private readonly pos = new THREE.Vector3()
   private readonly scale = new THREE.Vector3(1, 1, 1)
   private readonly quat = new THREE.Quaternion()
+  // ponytail: fixed prone transform, not a rigged pose — lays the standing geometry flat
+  private readonly proneQuat = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(1, 0, 0),
+    Math.PI / 2,
+  )
   private raining = false
   private time = 0
   private signalT = 0
@@ -148,6 +156,7 @@ export class Crowd {
   }
 
   update(dt: number, player: THREE.Vector3, density: number): void {
+    this.hitByDrunk = false
     const speedScale = 1 - 0.35 * density
     this.time += dt
     const t = this.time
@@ -164,6 +173,7 @@ export class Crowd {
     }
 
     for (const n of this.npcs) {
+      if (n.mode === 'sleep') continue // prone, static — no walk, no push, no recycle
       if (n.mode === 'cross') this.updateCrosser(n, dt, t, speedScale)
       else this.updateLaner(n, dt, t, speedScale)
 
@@ -171,6 +181,7 @@ export class Crowd {
       const dx = n.px - player.x
       const dz = n.pz - player.z
       const distSq = dx * dx + dz * dz
+      if (n.drunk && distSq < CONTACT_RADIUS * CONTACT_RADIUS) this.hitByDrunk = true
       if (distSq < PUSH_RADIUS * PUSH_RADIUS && distSq > 1e-4) {
         const dist = Math.sqrt(distSq)
         const push = ((PUSH_RADIUS - dist) / dist) * 0.6
@@ -197,6 +208,7 @@ export class Crowd {
       if (!n.surge && Math.random() < PAUSE_RATE * dt) {
         n.pause = PAUSE_MIN + Math.random() * (PAUSE_MAX - PAUSE_MIN)
       }
+      if (n.drunk && Math.random() < 0.4 * dt) n.dir = -n.dir // staggers back the way he came
       const wobble = 1 + SPEED_WOBBLE * Math.sin(t * n.weaveFreq * 3 + n.phase)
       n.along += n.dir * n.baseSpeed * wobble * speedScale * dt
     }
@@ -271,7 +283,7 @@ export class Crowd {
     for (const n of this.npcs) {
       const dx = n.px - player.x
       const dz = n.pz - player.z
-      if (dx * dx + dz * dz < DRAG_RADIUS * DRAG_RADIUS) near++
+      if (dx * dx + dz * dz < DRAG_RADIUS * DRAG_RADIUS) near += n.mode === 'sleep' ? 2 : 1
     }
     return Math.min(1, near / 26)
   }
@@ -279,9 +291,14 @@ export class Crowd {
   private writeMatrices(): void {
     for (let i = 0; i < this.npcs.length; i++) {
       const n = this.npcs[i]!
-      this.quat.setFromAxisAngle(UP, n.yaw)
+      if (n.mode === 'sleep') {
+        this.quat.setFromAxisAngle(UP, n.yaw).multiply(this.proneQuat)
+        this.pos.set(n.px, 0.35 * n.scale, n.pz) // resting near the ground
+      } else {
+        this.quat.setFromAxisAngle(UP, n.yaw)
+        this.pos.set(n.px, 0, n.pz)
+      }
       this.scale.set(n.scale, n.scaleY, n.scale)
-      this.pos.set(n.px, 0, n.pz)
       this.matrix.compose(this.pos, this.quat, this.scale)
       this.mesh.setMatrixAt(i, this.matrix)
 
@@ -310,6 +327,7 @@ export class Crowd {
       // Skewed so most dawdle and a thin tail hurries — a Shibuya crowd, not a conveyor.
       baseSpeed: 0.9 + Math.pow(Math.random(), 1.8) * 3.2,
       surge: false,
+      drunk: false,
       lane: this.streets.lanes[0]!,
       along: 0,
       offset: 0,
@@ -350,12 +368,39 @@ export class Crowd {
     const dir = Math.random() < 0.5 ? 1 : -1
     base.lane = lane
     base.dir = dir
-    base.offset = (Math.random() * 2 - 1) * LANE_JITTER
+
+    // A thin slice of laners are hazards: sleepers cost time as friction walls,
+    // drunkards stagger the courier on contact. Mutually exclusive.
+    const roll = Math.random()
+    if (roll < 0.04) {
+      base.mode = 'sleep'
+      base.baseSpeed = 0
+      base.offset = (Math.random() < 0.5 ? 1 : -1) * (LANE_BOUND - 0.1) // slumped by the curb
+    } else if (roll < 0.09) {
+      base.drunk = true
+      base.weaveAmp = WEAVE_AMP * 2.5
+    }
+
+    base.offset = base.mode === 'sleep' ? base.offset : (Math.random() * 2 - 1) * LANE_JITTER
     base.along = anywhere
       ? lane.min + Math.random() * (lane.max - lane.min)
       : dir > 0
         ? lane.min + Math.random() * 6
         : lane.max - Math.random() * 6
+    if (base.mode === 'sleep') {
+      // Static: resolve px/pz/yaw once here since update() never touches sleepers.
+      if (lane.axis === 'x') {
+        base.px = base.along
+        base.pz = lane.lane + base.offset
+        base.yaw = dir > 0 ? Math.PI / 2 : -Math.PI / 2
+      } else {
+        base.px = lane.lane + base.offset
+        base.pz = base.along
+        base.yaw = dir > 0 ? 0 : Math.PI
+      }
+      return base
+    }
+
     base.px = lane.axis === 'x' ? base.along : lane.lane
     base.pz = lane.axis === 'x' ? lane.lane : base.along
     return base
