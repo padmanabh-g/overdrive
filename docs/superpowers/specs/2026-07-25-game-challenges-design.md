@@ -36,7 +36,7 @@ each an atomic commit that builds green (`bun run typecheck`) before push.
   local fallback** on any parse/network failure. `feeds.ts`: `director()` call. new
   `src/game/director.ts`: dispatch surge→`crowd.surge`, pickpocket→`spawnPickpocket`,
   checkpoint→`spawnCop`, + `showNarration`. `main.ts`: run the Director off `pollFeeds`.
-- [ ] **T5 — Daytona probe.** `server/logic.ts`: real sandbox computes
+- [x] **T5 — Daytona probe.** `server/logic.ts`: real sandbox computes
   `density = f(hour, precip, rail-delay-count)`, sandbox handle reused across calls
   ("manage state"). Behind `DAYTONA_API_KEY`, any error → fixture `0.55`. New dep
   `@daytonaio/sdk`. Off hot path (30s poll).
