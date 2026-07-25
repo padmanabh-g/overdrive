@@ -22,7 +22,7 @@ each an atomic commit that builds green (`bun run typecheck`) before push.
   in `dragAt` → friction), `drunk` mode (huge weave + dir-flips, sets `hitByDrunk`
   on player contact), export `SQUARE`. `player.ts`: `stagger(s)`. `main.ts`:
   red-light rule (inside `SQUARE` while `!signal.walk` → drag boost), apply stagger + sfx.
-- [ ] **T2 — Powerups.** new `src/game/pickups.ts`: konbini beacons, `onigiri`/`pocari`
+- [x] **T2 — Powerups.** new `src/game/pickups.ts`: konbini beacons, `onigiri`/`pocari`
   → `speedMul 1.35 / 6s`, `beer` → `speedMul 0.6 / 5s`, respawn cooldown. `player.ts`:
   `buff(mul, s)` + `speedMul` in the speed line. `city.ts`: FamilyMart + 7-Eleven meshes
   with `createSignTexture` neon near the crossing. `main.ts`: wire + sfx.

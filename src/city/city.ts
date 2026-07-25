@@ -102,6 +102,7 @@ export function createShibuyaCity(scene: Scene, options: ShibuyaCityOptions = {}
   addDistrictLandmarks(group, look, colliders);
   addBuildings(group, look, materials, random, colliders, animatedSigns);
   addLandmarks(group, look, materials, colliders, animatedSigns);
+  addKonbini(group, materials);
   addSkyline(group, look, materials);
   if (crowdEscapeCombat) {
     group.add(crowdEscapeCombat.group);
@@ -393,6 +394,41 @@ function addLandmarks(
   });
 
   materials.all.push(glass, concrete);
+}
+
+// Konbini storefronts framing the crossing corners — pure set dressing, no colliders.
+// They sit at the diagonal corners, clear of the x/z axis walking corridors, and the
+// pickups live on the open ground in front of them.
+function addKonbini(group: Group, materials: CityMaterials): void {
+  const stores: Array<{ name: string; x: number; z: number; copy: string; color: string }> = [
+    { name: "FamilyMart konbini", x: -26, z: -26, copy: "ファミマ", color: "#2ea44f" },
+    { name: "7-Eleven konbini", x: 26, z: -26, copy: "セブン", color: "#ff7a1a" },
+  ];
+
+  for (const s of stores) {
+    const shell = new Mesh(new BoxGeometry(8, 7, 6), materials.building);
+    shell.name = s.name;
+    shell.position.set(s.x, 3.5, s.z);
+    shell.castShadow = true;
+    shell.receiveShadow = true;
+    group.add(shell);
+
+    const face = faceOrigin(s.x, s.z, 3.2); // sign on the face toward the crossing origin
+    const texture = createSignTexture(s.copy, s.color);
+    const sign = new Mesh(
+      new PlaneGeometry(6, 2.4),
+      new MeshBasicMaterial({
+        map: texture,
+        color: new Color(s.color).multiplyScalar(2.4),
+        transparent: true,
+        toneMapped: false,
+      }),
+    );
+    sign.name = `${s.name} neon sign`;
+    sign.position.set(face.x, 5, face.z);
+    sign.rotation.y = face.rotationY;
+    group.add(sign);
+  }
 }
 
 function addRoofSign(group: Group, l: Landmark): void {

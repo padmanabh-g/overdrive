@@ -5,6 +5,7 @@ import { createCityLighting, createRenderPipeline } from './render'
 import { feeds, isRaining, type Rail, type Weather } from './data/feeds'
 import { audio } from './audio/audio'
 import { Crowd, SQUARE } from './game/crowd'
+import { Pickups } from './game/pickups'
 import { Player } from './game/player'
 import { Run } from './game/run'
 import { TrafficSignals } from './game/signals'
@@ -40,6 +41,9 @@ scene.add(player.mesh)
 
 const crowd = new Crowd(CROWD_SIZE, streets)
 scene.add(crowd.mesh, crowd.umbrellas)
+
+const pickups = new Pickups()
+scene.add(pickups.group)
 
 const signals = new TrafficSignals()
 scene.add(signals.group)
@@ -129,6 +133,7 @@ function frame(): void {
   wasOnRed = onRed
 
   player.update(dt, city.colliders, bounds, Math.min(1, drag + (onRed ? 0.5 : 0)))
+  pickups.update(dt, player)
   player.updateCamera(camera, dt)
   crowd.update(dt, player.position, density)
   if (crowd.hitByDrunk) {

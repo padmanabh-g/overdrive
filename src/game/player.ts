@@ -18,6 +18,8 @@ export class Player {
   private readonly camPos = new THREE.Vector3()
   private readonly camTarget = new THREE.Vector3()
   private staggerT = 0
+  private buffMul = 1
+  private buffT = 0
 
   constructor() {
     this.mesh = new THREE.Group()
@@ -54,6 +56,12 @@ export class Player {
     this.staggerT = Math.max(this.staggerT, seconds)
   }
 
+  /** Konbini pickups tweak the courier's pace: `mul` > 1 speeds up, < 1 slows. */
+  buff(mul: number, seconds: number): void {
+    this.buffMul = mul
+    this.buffT = seconds
+  }
+
   /** `drag` is 0..1 crowd resistance — dense crowds make the courier wade. */
   update(dt: number, colliders: THREE.Box3[], bounds: { x: number; z: number }, drag: number): void {
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw))
@@ -67,8 +75,15 @@ export class Player {
 
     this.staggerT = Math.max(0, this.staggerT - dt)
     const staggered = this.staggerT > 0
+
+    this.buffT = Math.max(0, this.buffT - dt)
+    if (this.buffT === 0) this.buffMul = 1
+
     const speed =
-      (staggered || !this.sprinting ? WALK : SPRINT) * (1 - 0.72 * drag) * (staggered ? 0.5 : 1)
+      (staggered || !this.sprinting ? WALK : SPRINT) *
+      (1 - 0.72 * drag) *
+      (staggered ? 0.5 : 1) *
+      this.buffMul
     if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed)
 
     this.velocity.lerp(wish, Math.min(1, ACCEL * dt * 0.05))
