@@ -45,12 +45,29 @@ The whole visual quality bet is **night Shibuya**: neon, wet asphalt, fog, heavy
 
 `src/city/look.ts` is the contract: every visual number lives there, the gui panel binds to it, and the rest of the code reads it. Nobody else writes that file.
 
-### Handed to Jun — initial versions exist, both open
+### Jun's queue — post-merge, measured in the running game
 
-Claude wrote the first pass of `src/city/**`, `src/render/stage.ts`, and `src/ui/gui.ts` so the scaffold could run. They are yours from here; nobody else edits them.
+`jun-city-look` was merged into `main` at `878a18e`. Your `city.ts`, `look.ts`, `textures.ts`, and `gui.ts` won every conflict; the scaffold's `render/stage.ts` was deleted because your `lighting.ts` + `pipeline.ts` replace it. Gameplay code was adapted to your API, not the other way round.
 
-1. **The scene is too dark.** Values only, in `look.ts`: `exposure` 1.15→~1.35, `fogDensity` 0.011→~0.006, `ambientIntensity` 0.55→~0.8, `streetLightIntensity` 12→~28, `neonIntensity` 2.6→~3.4. Tune in the panel, then commit.
-2. **`glBlitFramebuffer` warning floods the console.** `postprocessing`'s composer shares a depth-stencil buffer between read and write. Measured at 60fps / 18.8ms worst frame, so it is cosmetic — do not let it eat your time. Disabling MSAA does *not* fix it; the likely real fix is swapping to three's own `UnrealBloomPass`, which touches `stage.ts` and `gui.ts`.
+Ranked by visual payoff per minute:
+
+1. **The road renders pure black — biggest win available.** `ground.metalness` is 0.78, but nothing in `lighting.ts` sets `scene.environment`, so the metal has nothing to reflect. The deleted `stage.ts` did this job with three's built-in room environment:
+
+   ```ts
+   import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
+   const pmrem = new THREE.PMREMGenerator(renderer)
+   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+   scene.environmentIntensity = 0.22   // tune this; it is the wet-asphalt dial
+   pmrem.dispose()
+   ```
+
+   Belongs in `createCityLighting`, and `environmentIntensity` is worth a gui slider.
+
+2. **`fog.density` 0.024 hides the whole city.** That is roughly 40 units of visibility; the nearest buildings sit 36 units off the corridor, so almost nothing renders. Try ~0.008 and tune upward until it feels moody rather than empty.
+
+3. **SSAO + shadow maps cost ~11fps** — measured 60 → 49 (worst frame 22.7ms). `ssao.enabled` and `key.castShadow` are the two switches. Your call whether the look is worth it; if you keep both, drop `ssao.resolutionScale` first.
+
+Still open, and deliberately deprioritised: the `glBlitFramebuffer` warning floods the console. It is cosmetic — the frame renders correctly. Disabling MSAA does *not* fix it. Do not spend freeze-time on it.
 
 ## Padmanabh + Claude — gameplay + data
 
