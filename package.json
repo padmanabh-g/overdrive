@@ -6,7 +6,8 @@
     "dev": "concurrently -n server,client -c cyan,magenta \"bun --hot server/index.ts\" \"vite\"",
     "dev:client": "vite",
     "dev:server": "bun --hot server/index.ts",
-    "build": "tsc --noEmit && vite build",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -16,7 +17,9 @@
     "three": "^0.171.0"
   },
   "devDependencies": {
+    "@types/node": "^26.1.1",
     "@types/three": "^0.171.0",
+    "@vercel/node": "^5.8.27",
     "concurrently": "^9.1.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.5"

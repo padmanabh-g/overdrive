@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>Overdrive Tokyo</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: #05060a; overflow: hidden; }
+      canvas { display: block; }
+
+      #hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        font: 500 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
+        color: #e8ecf5;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+      }
+      #hud .panel {
+        position: absolute;
+        padding: 12px 14px;
+        background: rgba(8, 10, 18, 0.55);
+        border: 1px solid rgba(150, 180, 255, 0.16);
+        border-radius: 10px;
+        backdrop-filter: blur(8px);
+      }
+      #objective { top: 20px; left: 20px; min-width: 210px; }
+      #conditions { top: 20px; right: 20px; min-width: 200px; }
+      #narration {
+        bottom: 28px;
+        left: 50%;
+        transform: translateX(-50%);
+        max-width: 620px;
+        text-align: center;
+        font-size: 14px;
+        opacity: 0;
+        transition: opacity 0.4s ease;
+      }
+      #narration.show { opacity: 1; }
+
+      .label { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: #7f8ca8; }
+      .big { font-size: 26px; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+      .row { display: flex; justify-content: space-between; gap: 16px; margin-top: 4px; }
+      .row span:last-child { color: #b9c6e0; }
+      .warn { color: #ff9a6b !important; }
+
+      #start {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        gap: 10px;
+        text-align: center;
+        background: radial-gradient(circle at 50% 45%, rgba(30, 20, 60, 0.5), rgba(5, 6, 10, 0.94));
+        font: 500 14px/1.6 ui-sans-serif, system-ui, sans-serif;
+        color: #dfe6f5;
+        cursor: pointer;
+        z-index: 10;
+      }
+      #start h1 { margin: 0; font-size: 34px; letter-spacing: -0.02em; font-weight: 650; }
+      #start .jp { color: #ff5f9e; letter-spacing: 0.3em; font-size: 12px; }
+      #start .dim { color: #8593b0; font-size: 12px; }
+      #start.hide { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="hud">
+      <div class="panel" id="objective"></div>
+      <div class="panel" id="conditions"></div>
+      <div class="panel" id="narration"></div>
+    </div>
+
+    <div id="start">
+      <div class="jp">オーバードライブ東京</div>
+      <h1>Overdrive Tokyo</h1>
+      <div>Deliver the parcel before the timer runs out.</div>
+      <div class="dim">WASD to move &middot; Shift to sprint &middot; Mouse to look</div>
+      <div class="dim">Click to start</div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
