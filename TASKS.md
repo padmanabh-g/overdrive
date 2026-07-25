@@ -70,11 +70,26 @@ Feature freeze at 15:00 is the important line. Anything not working by then gets
 
 ---
 
-## Known scoring gap
+## Sponsor integrations — Padmanabh + Claude
 
-Judging criterion 4 is **sponsored product usage, checked at code level**. Right now nothing in this project touches ai&, Daytona, GMI Cloud, Qwen, or Nosana — a pure three.js game scores zero there.
+Judging criterion 4 is **sponsored product usage, checked at code level**. We are using two:
 
-Cheapest real integration that fits the game: route NPC "decisions" or an in-game city-narration line through **ai&** (Japanese domestic GPU, also a theme point), and use **Daytona** as the sandbox for a small agent that fetches or derives a Condition the game has no API for. Needs an owner and a decision — not yet assigned.
+**ai& — the City Director.** On each condition change (weather flips to rain, rail delay appears, surge fires), one inference call decides how the city reacts and returns a short Japanese-flavoured narration line for the HUD. Real inference driving gameplay, not decoration. Domestic-GPU hosting is also a theme-alignment point to say out loud in the demo.
+
+**Daytona — the Probe sandbox.** Crowd density has no free API, so a small agent writes and executes its own code in a Daytona sandbox to derive a density figure, and keeps that state across the run. This is the event's "write their own code" and "manage their own state" requirements, satisfied literally, and it spends the $100 credit.
+
+**Stretch:** if ai& is OpenAI-compatible, GMI Cloud is a base-URL swap and becomes a third sponsor for a handful of lines.
+
+### Blocked on credentials
+
+A browser cannot hold API keys, so both calls go through Vite dev-server middleware (two endpoints, no second process to run during the demo).
+
+Needed from the sponsor workshop before this can be wired:
+
+- **ai&** — base URL, API key, model name, and whether the API is OpenAI-compatible
+- **Daytona** — API key
+
+Keys go in `.env.local` (gitignored). Never commit them. Until they arrive, both integrations sit behind adapters with fixture responses so the game runs and the demo is rehearsable without them.
 
 ## Git protocol
 
