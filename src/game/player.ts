@@ -12,11 +12,17 @@ export class Player {
   readonly position = new THREE.Vector3(0, 0, 26)
   readonly mesh: THREE.Group
   yaw = 0
+  frozen = false
   private pitch = -0.05
   private readonly velocity = new THREE.Vector3()
   private readonly keys = new Set<string>()
   private readonly camPos = new THREE.Vector3()
   private readonly camTarget = new THREE.Vector3()
+  private readonly parcel: THREE.Mesh
+  private staggerT = 0
+  private buffMul = 1
+  private buffT = 0
+  private punchT = 0
 
   constructor() {
     this.mesh = new THREE.Group()
@@ -34,8 +40,12 @@ export class Player {
     )
     parcel.position.set(0, 1.4, -0.28)
     this.mesh.add(parcel)
+    this.parcel = parcel
 
-    addEventListener('keydown', (e) => this.keys.add(e.code))
+    addEventListener('keydown', (e) => {
+      this.keys.add(e.code)
+      if (e.code === 'KeyF') this.punchT = 0.25
+    })
     addEventListener('keyup', (e) => this.keys.delete(e.code))
     addEventListener('mousemove', (e) => {
       if (document.pointerLockElement === null) return
@@ -48,18 +58,52 @@ export class Player {
     return this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')
   }
 
+  get isPunching(): boolean {
+    return this.punchT > 0
+  }
+
+  /** Hide the pink parcel box while it's in a thief's hands. */
+  setParcelHeld(held: boolean): void {
+    this.parcel.visible = held
+  }
+
+  /** A drunkard's bump knocks the courier woozy for a few seconds. */
+  stagger(seconds: number): void {
+    this.staggerT = Math.max(this.staggerT, seconds)
+  }
+
+  /** Konbini pickups tweak the courier's pace: `mul` > 1 speeds up, < 1 slows. */
+  buff(mul: number, seconds: number): void {
+    this.buffMul = mul
+    this.buffT = seconds
+  }
+
   /** `drag` is 0..1 crowd resistance — dense crowds make the courier wade. */
   update(dt: number, colliders: THREE.Box3[], bounds: { x: number; z: number }, drag: number): void {
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw))
     const right = new THREE.Vector3(forward.z, 0, -forward.x)
 
-    const wish = new THREE.Vector3()
-    if (this.keys.has('KeyW')) wish.add(forward)
-    if (this.keys.has('KeyS')) wish.sub(forward)
-    if (this.keys.has('KeyD')) wish.add(right)
-    if (this.keys.has('KeyA')) wish.sub(right)
+    this.punchT = Math.max(0, this.punchT - dt)
 
-    const speed = (this.sprinting ? SPRINT : WALK) * (1 - 0.72 * drag)
+    const wish = new THREE.Vector3()
+    if (!this.frozen) {
+      if (this.keys.has('KeyW')) wish.add(forward)
+      if (this.keys.has('KeyS')) wish.sub(forward)
+      if (this.keys.has('KeyD')) wish.add(right)
+      if (this.keys.has('KeyA')) wish.sub(right)
+    }
+
+    this.staggerT = Math.max(0, this.staggerT - dt)
+    const staggered = this.staggerT > 0
+
+    this.buffT = Math.max(0, this.buffT - dt)
+    if (this.buffT === 0) this.buffMul = 1
+
+    const speed =
+      (staggered || !this.sprinting ? WALK : SPRINT) *
+      (1 - 0.72 * drag) *
+      (staggered ? 0.5 : 1) *
+      this.buffMul
     if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed)
 
     this.velocity.lerp(wish, Math.min(1, ACCEL * dt * 0.05))

@@ -102,6 +102,7 @@ export function createShibuyaCity(scene: Scene, options: ShibuyaCityOptions = {}
   addDistrictLandmarks(group, look, colliders);
   addBuildings(group, look, materials, random, colliders, animatedSigns);
   addLandmarks(group, look, materials, colliders, animatedSigns);
+  addKonbini(group, materials);
   addSkyline(group, look, materials);
   if (crowdEscapeCombat) {
     group.add(crowdEscapeCombat.group);
@@ -248,6 +249,7 @@ function addBuildings(
 
     addWindowWrap(group, lot, materials);
     addNeonStack(group, look, random, lot, animatedSigns);
+    addStorefront(group, look, random, lot, animatedSigns);
   }
 
   shellMesh.instanceMatrix.needsUpdate = true;
@@ -395,6 +397,41 @@ function addLandmarks(
   materials.all.push(glass, concrete);
 }
 
+// Konbini storefronts framing the crossing corners — pure set dressing, no colliders.
+// They sit at the diagonal corners, clear of the x/z axis walking corridors, and the
+// pickups live on the open ground in front of them.
+function addKonbini(group: Group, materials: CityMaterials): void {
+  const stores: Array<{ name: string; x: number; z: number; copy: string; color: string }> = [
+    { name: "FamilyMart konbini", x: -26, z: -26, copy: "ファミマ", color: "#2ea44f" },
+    { name: "7-Eleven konbini", x: 26, z: -26, copy: "セブン", color: "#ff7a1a" },
+  ];
+
+  for (const s of stores) {
+    const shell = new Mesh(new BoxGeometry(8, 7, 6), materials.building);
+    shell.name = s.name;
+    shell.position.set(s.x, 3.5, s.z);
+    shell.castShadow = true;
+    shell.receiveShadow = true;
+    group.add(shell);
+
+    const face = faceOrigin(s.x, s.z, 3.2); // sign on the face toward the crossing origin
+    const texture = createSignTexture(s.copy, s.color);
+    const sign = new Mesh(
+      new PlaneGeometry(6, 2.4),
+      new MeshBasicMaterial({
+        map: texture,
+        color: new Color(s.color).multiplyScalar(2.4),
+        transparent: true,
+        toneMapped: false,
+      }),
+    );
+    sign.name = `${s.name} neon sign`;
+    sign.position.set(face.x, 5, face.z);
+    sign.rotation.y = face.rotationY;
+    group.add(sign);
+  }
+}
+
 function addRoofSign(group: Group, l: Landmark): void {
   const face = faceOrigin(l.x, l.z, l.width / 2 + 0.1);
   const texture = createSignTexture("109", "#101018");
@@ -476,7 +513,69 @@ function addNeonStack(
   }
 }
 
-function addReflection(group: Group, look: CityLook, sign: Mesh, color: string): void {
+// Warm eye-level signage so the side streets aren't dark. Every building gets a horizontal
+// izakaya sign + a hanging red lantern on the face turned toward the crossing, which is the
+// side the walkable corridors run along.
+// ponytail: only the center-facing wall is lit; the map-edge side of corner lots stays dim,
+// but the player walks the corridors toward the crossing, so that's the side that reads.
+const STOREFRONT_COLORS = ["#ff5a36", "#ffb04a", "#ff2f5a", "#ffd23f", "#ff7a1a", "#ff9d4d"];
+const STOREFRONT_COPY = ["居酒屋", "ラーメン", "焼鳥", "おでん", "スナック", "酒", "餃子", "串カツ", "もつ煮", "カラオケ"];
+
+function addStorefront(
+  group: Group,
+  look: CityLook,
+  random: () => number,
+  lot: { x: number; z: number; width: number; depth: number; height: number },
+  animatedSigns: Array<Mesh<PlaneGeometry, MeshBasicMaterial>>,
+): void {
+  const dominantX = Math.abs(lot.x) >= Math.abs(lot.z);
+  const color = pick(STOREFRONT_COLORS, random);
+  const texture = createSignTexture(pick(STOREFRONT_COPY, random), color);
+  const sign = new Mesh(
+    new PlaneGeometry(3.4, 1.5),
+    new MeshBasicMaterial({
+      map: texture,
+      color: new Color(color).multiplyScalar(look.neon.intensity * 0.7),
+      transparent: true,
+      toneMapped: false,
+    }),
+  );
+  sign.name = "izakaya storefront sign";
+  const y = 3.2 + random() * 0.6;
+
+  if (dominantX) {
+    const direction = lot.x > 0 ? -1 : 1; // face back toward the crossing
+    sign.position.set(lot.x + direction * (lot.width / 2 + 0.08), y, lot.z + (random() - 0.5) * lot.depth * 0.4);
+    sign.rotation.y = direction > 0 ? Math.PI / 2 : -Math.PI / 2;
+  } else {
+    const direction = lot.z > 0 ? -1 : 1;
+    sign.position.set(lot.x + (random() - 0.5) * lot.width * 0.4, y, lot.z + direction * (lot.depth / 2 + 0.08));
+    sign.rotation.y = direction > 0 ? 0 : Math.PI;
+  }
+
+  animatedSigns.push(sign);
+  group.add(sign);
+  addReflection(group, look, sign, color, 3, 4);
+
+  // Paper lantern hung just in front of the sign — the warm point-glow that carries down the alley.
+  const lantern = new Mesh(
+    new CylinderGeometry(0.34, 0.34, 1.05, 12),
+    new MeshBasicMaterial({ color: new Color("#ff5a36").multiplyScalar(1.8), toneMapped: false }),
+  );
+  lantern.name = "izakaya paper lantern";
+  const forward = new Vector3(Math.sin(sign.rotation.y), 0, Math.cos(sign.rotation.y)).multiplyScalar(0.5);
+  lantern.position.set(sign.position.x + forward.x, 2.4, sign.position.z + forward.z);
+  group.add(lantern);
+}
+
+function addReflection(
+  group: Group,
+  look: CityLook,
+  sign: Mesh,
+  color: string,
+  width = look.neon.signWidth * 1.5,
+  height = look.neon.signHeight * 1.8,
+): void {
   const material = new MeshBasicMaterial({
     color,
     transparent: true,
@@ -484,7 +583,7 @@ function addReflection(group: Group, look: CityLook, sign: Mesh, color: string):
     depthWrite: false,
     toneMapped: false,
   });
-  const reflection = new Mesh(new PlaneGeometry(look.neon.signWidth * 1.5, look.neon.signHeight * 1.8), material);
+  const reflection = new Mesh(new PlaneGeometry(width, height), material);
   reflection.name = "fake neon road reflection";
   reflection.position.set(sign.position.x, 0.055, sign.position.z);
   reflection.rotation.x = -Math.PI / 2;

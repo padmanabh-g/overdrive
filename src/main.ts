@@ -3,7 +3,11 @@ import { createShibuyaCity } from './city'
 import { cityLook } from './city/look'
 import { createCityLighting, createRenderPipeline } from './render'
 import { feeds, isRaining, type Rail, type Weather } from './data/feeds'
-import { Crowd } from './game/crowd'
+import { audio } from './audio/audio'
+import { Crowd, SQUARE } from './game/crowd'
+import { createDirector } from './game/director'
+import { Encounters } from './game/encounters'
+import { Pickups } from './game/pickups'
 import { Player } from './game/player'
 import { Run } from './game/run'
 import { TrafficSignals } from './game/signals'
@@ -40,11 +44,19 @@ scene.add(player.mesh)
 const crowd = new Crowd(CROWD_SIZE, streets)
 scene.add(crowd.mesh, crowd.umbrellas)
 
+const pickups = new Pickups()
+scene.add(pickups.group)
+
+const encounters = new Encounters()
+scene.add(encounters.group)
+
 const signals = new TrafficSignals()
 scene.add(signals.group)
 
 const run = new Run(streets)
 scene.add(run.marker)
+
+const director = createDirector({ crowd, encounters, run, player })
 
 const minimap = new Minimap(city.colliders, streets.halfWidth, streets.halfDepth)
 
@@ -60,6 +72,7 @@ let rail: Rail = { source: 'pending', live: false, lines: [] }
 let density = 0.5
 let drag = 0
 let raining = false
+let wasOnRed = false
 
 function setRaining(next: boolean): void {
   raining = next
@@ -85,6 +98,8 @@ async function pollFeeds(): Promise<void> {
     const { line } = await feeds.narrate(nowRaining ? 'rain' : 'clear', weather)
     showNarration(line)
   }
+
+  void feeds.director(weather, rail).then((ev) => director.dispatch(ev))
 }
 
 void pollFeeds()
@@ -95,6 +110,7 @@ const startOverlay = document.getElementById('start')!
 function beginRun(): void {
   startOverlay.classList.add('hide')
   renderer.domElement.requestPointerLock()
+  audio.startMusic()
   run.start(player.position)
 }
 
@@ -119,20 +135,35 @@ function frame(): void {
 
   drag = crowd.dragAt(player.position)
 
-  player.update(dt, city.colliders, bounds, drag)
+  // Crossing on red is friction, not damage — the crowd hems the courier in.
+  const onRed =
+    !crowd.signal.walk && Math.abs(player.position.x) < SQUARE && Math.abs(player.position.z) < SQUARE
+  if (onRed && !wasOnRed) audio.sfx('redlight')
+  wasOnRed = onRed
+
+  player.update(dt, city.colliders, bounds, Math.min(1, drag + (onRed ? 0.5 : 0)))
+  pickups.update(dt, player)
   player.updateCamera(camera, dt)
   crowd.update(dt, player.position, density)
+  if (crowd.hitByDrunk) {
+    player.stagger(0.5)
+    audio.sfx('beer')
+  }
+  encounters.update(dt, player, run, onRed)
   signals.update(crowd.signal)
   city.update(dt, elapsed)
 
   const event = run.update(dt, player.position)
   if (event === 'surge') {
     crowd.surge(run.dropPoint.clone().lerp(player.position, 0.5), 520)
+    audio.sfx('surge')
     void feeds.narrate('surge', weather).then(({ line }) => showNarration(line))
   } else if (event === 'won') {
+    audio.sfx('win')
     showNarration('配達完了 — Parcel delivered. Press R to run again.')
     document.exitPointerLock()
   } else if (event === 'lost') {
+    audio.sfx('lose')
     showNarration('時間切れ — The city won this one. Press R to try again.')
     document.exitPointerLock()
   }

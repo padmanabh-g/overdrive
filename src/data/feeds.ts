@@ -16,6 +16,16 @@ export type Rail = {
 export type Narration = { source: string; live: boolean; line: string }
 export type Probe = { source: string; live: boolean; density: number; note?: string }
 
+// Re-declared here (not imported from server/logic) so no server code leaks into the client bundle.
+export type DirectorEvent = {
+  source: string
+  live: boolean
+  event: 'pickpocket' | 'checkpoint' | 'surge' | 'calm'
+  where: 'drop' | 'station' | 'crossing'
+  intensity: number
+  line: string
+}
+
 async function get<T>(path: string, fallback: T): Promise<T> {
   try {
     const res = await fetch(path)
@@ -67,6 +77,19 @@ export const feeds = {
       '/api/city-director',
       { condition, tempC: w?.tempC, precipMm: w?.precipMm, windKph: w?.windKph },
       { source: 'offline', live: false, line: '' },
+    ),
+
+  // ai& as City Director — a structured event scheduling the next challenge.
+  director: (w?: Weather, rail?: Rail) =>
+    post<DirectorEvent>(
+      '/api/director',
+      {
+        tempC: w?.tempC,
+        precipMm: w?.precipMm,
+        windKph: w?.windKph,
+        railDelays: rail?.lines.filter((l) => l.status !== 'normal').length ?? 0,
+      },
+      { source: 'offline', live: false, event: 'calm', where: 'crossing', intensity: 0, line: '' },
     ),
 
   // Daytona — the Probe sandbox.

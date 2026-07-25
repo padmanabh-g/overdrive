@@ -139,6 +139,159 @@ export async function cityDirector(input: DirectorInput = {}) {
   }
 }
 
+export type DirectorEvent = {
+  source: string
+  live: boolean
+  event: 'pickpocket' | 'checkpoint' | 'surge' | 'calm'
+  where: 'drop' | 'station' | 'crossing'
+  intensity: number
+  line: string
+  model?: string
+}
+
+export type DirectorEventInput = {
+  tempC?: number
+  precipMm?: number
+  windKph?: number
+  railDelays?: number
+}
+
+const EVENTS = ['pickpocket', 'checkpoint', 'surge', 'calm'] as const
+const WHERES = ['drop', 'station', 'crossing'] as const
+
+/** Pure: parse+validate the model's JSON into a DirectorEvent, or null on any defect. */
+export function parseDirectorEvent(raw: string, fallbackLine: string): DirectorEvent | null {
+  let obj: unknown
+  try {
+    obj = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (!obj || typeof obj !== 'object') return null
+  const o = obj as Record<string, unknown>
+  if (!EVENTS.includes(o.event as (typeof EVENTS)[number])) return null
+  if (!WHERES.includes(o.where as (typeof WHERES)[number])) return null
+
+  const n = Number(o.intensity)
+  const intensity = Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0
+  const line = typeof o.line === 'string' && o.line.trim() ? o.line.trim() : fallbackLine
+
+  return {
+    source: 'ai&',
+    live: true,
+    event: o.event as DirectorEvent['event'],
+    where: o.where as DirectorEvent['where'],
+    intensity,
+    line,
+  }
+}
+
+const DIRECTOR_EVENT_SYSTEM = [
+  'You are the City Director of a live night simulation of Shibuya, Tokyo.',
+  'Given the current real conditions, schedule the next street challenge.',
+  'Output ONLY a JSON object, no prose, no code fence, with exactly these keys:',
+  'event (one of: pickpocket, checkpoint, surge, calm),',
+  'where (one of: drop, station, crossing),',
+  'intensity (a number 0..1),',
+  'line (a short Japanese word or phrase, an em dash, then one English sentence under 16 words).',
+].join(' ')
+
+/**
+ * ai& as the City Director: returns a structured event scheduling the next challenge.
+ * The game loop polls this, so it must never hang and never throw — any failure
+ * (missing env, timeout, bad JSON, invalid enum) deterministically falls to localSchedule.
+ */
+export async function directorEvent(input: DirectorEventInput = {}): Promise<DirectorEvent> {
+  const key = process.env.AI_AND_API_KEY
+  const baseUrl = process.env.AI_AND_BASE_URL
+  const model = process.env.AI_AND_MODEL
+
+  if (!key || !baseUrl || !model) return localSchedule(input)
+
+  const fallbackLine = localSchedule(input).line
+
+  const facts = [
+    input.tempC !== undefined ? `temperature: ${input.tempC.toFixed(0)}C` : null,
+    input.precipMm !== undefined ? `precipitation: ${input.precipMm}mm` : null,
+    input.windKph !== undefined ? `wind: ${input.windKph.toFixed(0)}km/h` : null,
+    input.railDelays !== undefined ? `rail delays: ${input.railDelays}` : null,
+  ]
+    .filter(Boolean)
+    .join(', ')
+
+  try {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(6000),
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: DIRECTOR_EVENT_SYSTEM },
+          { role: 'user', content: facts },
+        ],
+        temperature: 1,
+        max_tokens: 160,
+        stream: false,
+      }),
+    })
+
+    if (!res.ok) throw new Error(`ai& ${res.status} ${(await res.text()).slice(0, 200)}`)
+
+    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
+    const raw = data.choices?.[0]?.message?.content?.trim()
+    if (!raw) throw new Error('ai& returned no content')
+
+    const parsed = parseDirectorEvent(raw.replace(/^```(?:json)?|```$/g, '').trim(), fallbackLine)
+    if (!parsed) throw new Error('ai& returned unparseable event')
+    return { ...parsed, model }
+  } catch (err) {
+    console.warn('[director] falling back to local schedule:', String(err))
+    return localSchedule(input)
+  }
+}
+
+/** Deterministic scheduler: same conditions always yield the same event. No randomness. */
+export function localSchedule(input: DirectorEventInput = {}): DirectorEvent {
+  const precip = input.precipMm ?? 0
+  const wind = input.windKph ?? 0
+  const delays = input.railDelays ?? 0
+  const clamp = (n: number) => Math.min(1, Math.max(0, n))
+
+  if (precip >= 1) {
+    return event('surge', 'crossing', clamp(0.4 + precip / 10 + wind / 80), 'rain')
+  }
+  if (delays > 0) {
+    return event('surge', 'station', clamp(0.4 + delays / 4), 'rail')
+  }
+
+  // Rotate on a stable index so no run gets stuck on one beat, but repeats deterministically.
+  const idx = Math.abs(Math.floor((input.tempC ?? 0) + delays)) % 3
+  if (idx === 0) return event('pickpocket', 'drop', 0.5, 'pickpocket')
+  if (idx === 1) return event('checkpoint', 'station', 0.5, 'checkpoint')
+  return event('calm', 'crossing', 0.2, 'calm')
+}
+
+const EVENT_LINES: Record<DirectorEvent['event'], string> = {
+  pickpocket: 'スリ注意 — A hand drifts toward your bag in the throng.',
+  checkpoint: '検問 — Officers wave a checkpoint up near the station.',
+  surge: fixtureNarration('surge'),
+  calm: fixtureNarration(),
+}
+
+function event(
+  ev: DirectorEvent['event'],
+  where: DirectorEvent['where'],
+  intensity: number,
+  condition?: string,
+): DirectorEvent {
+  const line =
+    condition === 'rain' || condition === 'rail'
+      ? fixtureNarration(condition)
+      : EVENT_LINES[ev]
+  return { source: 'fixture', live: false, event: ev, where, intensity, line }
+}
+
 /** Daytona — the Probe sandbox. Fixture until credentials arrive. */
 export async function probe() {
   if (!process.env.DAYTONA_API_KEY) {

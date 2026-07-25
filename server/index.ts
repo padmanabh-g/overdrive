@@ -1,5 +1,14 @@
 import Fastify from 'fastify'
-import { cityDirector, integrations, probe, rail, weather, type DirectorInput } from './logic'
+import {
+  cityDirector,
+  directorEvent,
+  integrations,
+  probe,
+  rail,
+  weather,
+  type DirectorEventInput,
+  type DirectorInput,
+} from './logic'
 
 const app = Fastify({ logger: false })
 
@@ -8,6 +17,8 @@ app.get('/api/weather', weather)
 app.get('/api/rail', async () => rail())
 
 app.post('/api/city-director', async (req) => cityDirector((req.body ?? {}) as DirectorInput))
+
+app.post('/api/director', async (req) => directorEvent((req.body ?? {}) as DirectorEventInput))
 
 app.post('/api/probe', async () => probe())
 
