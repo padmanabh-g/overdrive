@@ -102,6 +102,7 @@ export function createShibuyaCity(scene: Scene, options: ShibuyaCityOptions = {}
   addDistrictLandmarks(group, look, colliders);
   addBuildings(group, look, materials, random, colliders, animatedSigns);
   addLandmarks(group, look, materials, colliders, animatedSigns);
+  addBrandSigns(group, animatedSigns);
   addKonbini(group, materials);
   addSkyline(group, look, materials);
   if (crowdEscapeCombat) {
@@ -395,6 +396,62 @@ function addLandmarks(
   });
 
   materials.all.push(glass, concrete);
+}
+
+// Named brand/place neon boards ringing the crossing — art-only, no colliders. Each rides an
+// (x,z) near a landmark or corridor face; faceOrigin angles it inward at the crossing origin so
+// it reads from the square. Signs pulse via the shared animatedSigns loop.
+function addBrandSigns(
+  group: Group,
+  animatedSigns: Array<Mesh<PlaneGeometry, MeshBasicMaterial>>,
+): void {
+  const brands: Array<{
+    copy: string;
+    color: string;
+    fx: number;
+    fz: number;
+    offset: number;
+    y: number;
+    width: number;
+    height: number;
+  }> = [
+    // Station side (Shibuya Station x:18 z:54) — JR green, Tokyu red, Metro blue.
+    { copy: "JR渋谷駅", color: "#4caf50", fx: 18, fz: 40, offset: 0, y: 16, width: 14, height: 9 },
+    { copy: "東急", color: "#e53935", fx: 30, fz: 44, offset: 0, y: 20, width: 8, height: 12 },
+    { copy: "東京メトロ", color: "#0d47a1", fx: 6, fz: 44, offset: 0, y: 11, width: 12, height: 8 },
+    // Hikarie (72,54) face.
+    { copy: "Bic Camera", color: "#d32f2f", fx: 72, fz: 54, offset: 24, y: 18, width: 13, height: 16 },
+    // Scramble Square (54,72) face — stacked with the SHIBUYA board already there.
+    { copy: "TSUTAYA", color: "#1565c0", fx: 54, fz: 72, offset: 31, y: 22, width: 14, height: 10 },
+    // 109 side (-54,36).
+    { copy: "渋谷PARCO", color: "#eeeeee", fx: -40, fz: 26, offset: 0, y: 19, width: 13, height: 9 },
+    { copy: "西武", color: "#00897b", fx: -46, fz: 14, offset: 0, y: 15, width: 8, height: 12 },
+    // QFRONT / north corridor (0,-36) cluster around the hero curve.
+    { copy: "ドン・キホーテ", color: "#ffd21a", fx: -18, fz: -30, offset: 0, y: 9, width: 12, height: 8 },
+    { copy: "スターバックス", color: "#00704a", fx: 20, fz: -30, offset: 0, y: 10, width: 11, height: 8 },
+    { copy: "カラオケ館", color: "#ff2f8f", fx: 30, fz: -22, offset: 0, y: 17, width: 10, height: 14 },
+    // Corridor faces — extra brand density, varied height.
+    { copy: "ファミリーマート", color: "#2ea44f", fx: -30, fz: 8, offset: 0, y: 13, width: 12, height: 8 },
+    { copy: "セブン-イレブン", color: "#ff7a1a", fx: 34, fz: 6, offset: 0, y: 12, width: 12, height: 8 },
+    { copy: "無印良品", color: "#8d2f2f", fx: -12, fz: 40, offset: 0, y: 21, width: 10, height: 8 },
+    { copy: "ユニクロ", color: "#e60012", fx: 44, fz: 30, offset: 0, y: 14, width: 11, height: 9 },
+    { copy: "ビックロ", color: "#7c4dff", fx: -34, fz: -14, offset: 0, y: 18, width: 9, height: 12 },
+    { copy: "マツモトキヨシ", color: "#ffd21a", fx: 12, fz: -22, offset: 0, y: 20, width: 11, height: 8 },
+  ];
+
+  for (const b of brands) {
+    const f = faceOrigin(b.fx, b.fz, b.offset);
+    addAdScreen(group, animatedSigns, {
+      copy: b.copy,
+      color: b.color,
+      x: f.x,
+      y: b.y,
+      z: f.z,
+      width: b.width,
+      height: b.height,
+      rotationY: f.rotationY,
+    });
+  }
 }
 
 // Konbini storefronts framing the crossing corners — pure set dressing, no colliders.
