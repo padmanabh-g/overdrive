@@ -26,6 +26,7 @@ export const SQUARE = 22 // half-extent of the open crossing, world units (curbs
 export const CROSS_WALK = 11 // green seconds
 export const CROSS_WAIT = 7 // red seconds
 const CROSS_STAGGER = 1.6 // max random delay after green so the flood isn't a lockstep pulse
+const CROSS_CLEAR_SPEED = 13 // u/s dash to the curb on red — fast enough to empty the square before green
 
 const UP = new THREE.Vector3(0, 1, 0)
 
@@ -168,8 +169,18 @@ export class Crowd {
     if (this.walk && this.signalT > CROSS_WALK) {
       this.walk = false
       this.signalT = 0
-      // Red: anyone mid-crossing rushes to clear the intersection.
-      for (const n of this.npcs) if (n.mode === 'cross' && n.walking) n.hurry = 2.2
+      // Red: everyone still on the road bolts for the NEAREST curb and clears the square.
+      for (const n of this.npcs) {
+        if (n.mode !== 'cross' || !n.walking) continue
+        if (n.p < 0.5) {
+          // Not yet past the middle — the closer curb is the one behind; flip the crossing.
+          ;[n.fromX, n.toX] = [n.toX, n.fromX]
+          ;[n.fromZ, n.toZ] = [n.toZ, n.fromZ]
+          n.p = 1 - n.p
+        }
+        n.crossDelay = 0 // no dawdling on red
+        n.hurry = 2.2
+      }
     } else if (!this.walk && this.signalT > CROSS_WAIT) {
       this.walk = true
       this.signalT = 0
@@ -251,7 +262,9 @@ export class Crowd {
       n.crossDelay -= dt
     } else {
       const wobble = 1 + SPEED_WOBBLE * Math.sin(t * n.weaveFreq * 3 + n.phase)
-      n.p += (n.baseSpeed * n.hurry * wobble * speedScale * dt) / n.crossLen
+      // On red, dash at a fixed clearing speed so even slow walkers empty the square in time.
+      const speed = this.walk ? n.baseSpeed * n.hurry : CROSS_CLEAR_SPEED
+      n.p += (speed * wobble * speedScale * dt) / n.crossLen
       if (n.p >= 1) {
         n.p = 1
         n.walking = false // arrived at the far curb; wait for the next green
