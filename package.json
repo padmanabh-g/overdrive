@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@daytonaio/sdk": "^0.200.1",
     "fastify": "^5.2.0",
     "lil-gui": "^0.20.0",
     "postprocessing": "^6.36.4",

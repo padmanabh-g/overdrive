@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { audio } from '../audio/audio'
 import { humanoidGeometry } from './humanoid'
 import type { Lane, Streets } from './streets'
 
@@ -61,6 +62,7 @@ type Npc = {
   crossDelay: number // stagger after green
   greenUsed: number // greenId already spent, so one crossing per green
   perpPush: number // player shove perpendicular to travel, decays
+  hurry: number // crossing-speed multiplier; 2.2 while clearing the road on red, else 1
 }
 
 export class Crowd {
@@ -166,10 +168,13 @@ export class Crowd {
     if (this.walk && this.signalT > CROSS_WALK) {
       this.walk = false
       this.signalT = 0
+      // Red: anyone mid-crossing rushes to clear the intersection.
+      for (const n of this.npcs) if (n.mode === 'cross' && n.walking) n.hurry = 2.2
     } else if (!this.walk && this.signalT > CROSS_WAIT) {
       this.walk = true
       this.signalT = 0
       this.greenId++
+      audio.cue('/audio/signal.mp3')
     }
 
     for (const n of this.npcs) {
@@ -246,10 +251,11 @@ export class Crowd {
       n.crossDelay -= dt
     } else {
       const wobble = 1 + SPEED_WOBBLE * Math.sin(t * n.weaveFreq * 3 + n.phase)
-      n.p += (n.baseSpeed * wobble * speedScale * dt) / n.crossLen
+      n.p += (n.baseSpeed * n.hurry * wobble * speedScale * dt) / n.crossLen
       if (n.p >= 1) {
         n.p = 1
         n.walking = false // arrived at the far curb; wait for the next green
+        n.hurry = 1
         n.fromX = n.toX
         n.fromZ = n.toZ
         n.fromSide = sideOf(n.toX, n.toZ)
@@ -344,6 +350,7 @@ export class Crowd {
       crossDelay: 0,
       greenUsed: -1,
       perpPush: 0,
+      hurry: 1,
     }
 
     if (Math.random() < CROSSER_FRACTION) {

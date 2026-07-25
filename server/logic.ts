@@ -3,6 +3,8 @@
  * and the deployed Vercel Functions (api/*.ts) so there is exactly one implementation.
  */
 
+import { Daytona, type Sandbox } from '@daytonaio/sdk'
+
 const SHIBUYA = { lat: 35.6595, lon: 139.7005 }
 
 export type Weather = {
@@ -292,12 +294,57 @@ function event(
   return { source: 'fixture', live: false, event: ev, where, intensity, line }
 }
 
-/** Daytona — the Probe sandbox. Fixture until credentials arrive. */
+const PROBE_FIXTURE = { source: 'fixture', live: false, density: 0.55 }
+
+// ponytail: one shared sandbox reused across calls, no pool. Add pooling only if probe() ever runs concurrently and contends.
+let sandboxPromise: Promise<Sandbox> | null = null
+let samples = 0
+
+/**
+ * Daytona — the Probe sandbox. Computes crowd density in the sandbox itself
+ * from the Tokyo hour and a sample counter that persists across calls (the
+ * sandbox is created once and reused). The game loop polls this, so it must
+ * never hang and never throw: any failure or missing key falls to the fixture.
+ */
 export async function probe() {
   if (!process.env.DAYTONA_API_KEY) {
-    return { source: 'fixture', live: false, density: 0.55, note: 'no DAYTONA_API_KEY' }
+    return { ...PROBE_FIXTURE, note: 'no DAYTONA_API_KEY' }
   }
-  return { source: 'daytona', live: false, density: 0.55, note: 'sandbox not wired yet' }
+
+  try {
+    if (!sandboxPromise) {
+      const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
+      sandboxPromise = daytona.create()
+    }
+    const sandbox = await sandboxPromise
+
+    const hour = Number(
+      new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo', hour: '2-digit', hour12: false }),
+    )
+    samples += 1
+
+    // Rush-hour curve peaking ~08:00 and ~18:00; nudged up as samples accumulate (kept sandbox-side state).
+    const code = [
+      'import math',
+      `hour = ${hour}`,
+      `samples = ${samples}`,
+      'peak = max(math.exp(-((hour-8)**2)/6), math.exp(-((hour-18)**2)/6))',
+      'density = min(1.0, 0.2 + 0.7*peak + min(0.1, samples*0.005))',
+      'print(round(density, 4))',
+    ].join('\n')
+
+    const res = await sandbox.process.codeRun(code, undefined, 8)
+    if (res.exitCode !== 0) throw new Error(`daytona exit ${res.exitCode}: ${String(res.result).slice(0, 200)}`)
+
+    const density = Number.parseFloat(String(res.result).trim())
+    if (!Number.isFinite(density)) throw new Error(`daytona bad density: ${String(res.result).slice(0, 80)}`)
+
+    return { source: 'daytona', live: true, density: Math.min(1, Math.max(0, density)), note: `sample ${samples}` }
+  } catch (err) {
+    sandboxPromise = null // let the next call rebuild a fresh sandbox
+    console.warn('[probe] falling back to fixture:', String(err))
+    return { ...PROBE_FIXTURE, note: String(err).slice(0, 120) }
+  }
 }
 
 export function fixtureNarration(condition?: string): string {
