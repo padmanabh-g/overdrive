@@ -6,9 +6,11 @@ import { feeds, isRaining, type Rail, type Weather } from './data/feeds'
 import { Crowd } from './game/crowd'
 import { Player } from './game/player'
 import { Run } from './game/run'
+import { TrafficSignals } from './game/signals'
 import { deriveStreets } from './game/streets'
 import { bindArtGui } from './ui/gui'
 import { showNarration, updateConditions, updateObjective } from './ui/hud'
+import { Minimap } from './ui/minimap'
 
 const CROWD_SIZE = 1400
 const FEED_INTERVAL_MS = 30_000
@@ -38,8 +40,13 @@ scene.add(player.mesh)
 const crowd = new Crowd(CROWD_SIZE, streets)
 scene.add(crowd.mesh, crowd.umbrellas)
 
+const signals = new TrafficSignals()
+scene.add(signals.group)
+
 const run = new Run(streets)
 scene.add(run.marker)
+
+const minimap = new Minimap(city.colliders, streets.halfWidth, streets.halfDepth)
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight
@@ -115,6 +122,7 @@ function frame(): void {
   player.update(dt, city.colliders, bounds, drag)
   player.updateCamera(camera, dt)
   crowd.update(dt, player.position, density)
+  signals.update(crowd.signal)
   city.update(dt, elapsed)
 
   const event = run.update(dt, player.position)
@@ -135,6 +143,8 @@ function frame(): void {
     updateObjective(run, run.distanceFrom(player.position), drag)
     updateConditions(weather, rail, density, raining)
   }
+
+  minimap.render(player.position, player.yaw, run.dropPoint, elapsed)
 
   pipeline.render(dt)
   requestAnimationFrame(frame)

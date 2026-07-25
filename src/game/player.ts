@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { humanoidGeometry } from './humanoid'
 
 const RADIUS = 0.85
 const WALK = 9.5
@@ -21,10 +22,9 @@ export class Player {
     this.mesh = new THREE.Group()
 
     const body = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.42, 1.05, 4, 12),
-      new THREE.MeshStandardMaterial({ color: 0x1b1f2b, roughness: 0.5, metalness: 0.25 }),
+      humanoidGeometry(),
+      new THREE.MeshStandardMaterial({ color: 0x1b1f2b, roughness: 0.55, metalness: 0.2 }),
     )
-    body.position.y = 1.05
     this.mesh.add(body)
 
     // The parcel doubles as the player silhouette — a glowing box you can always find.
@@ -32,7 +32,7 @@ export class Player {
       new THREE.BoxGeometry(0.62, 0.62, 0.42),
       new THREE.MeshBasicMaterial({ color: 0xff4f8d, toneMapped: false }),
     )
-    parcel.position.set(0, 1.72, -0.34)
+    parcel.position.set(0, 1.4, -0.28)
     this.mesh.add(parcel)
 
     addEventListener('keydown', (e) => this.keys.add(e.code))

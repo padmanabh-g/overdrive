@@ -12,6 +12,8 @@ export type ArtGuiTargets = {
 
 export function bindArtGui(look: CityLook = cityLook, targets: ArtGuiTargets = {}): GUI {
   const gui = new GUI({ title: "Jun look" });
+  // Dev art-tuning panel — hidden in play, shown with ?art for Jun's calibration.
+  if (!location.search.includes("art")) gui.hide();
 
   const apply = () => {
     targets.city?.applyLook(look);

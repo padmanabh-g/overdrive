@@ -3,6 +3,7 @@ import {
   BoxGeometry,
   BufferGeometry,
   Color,
+  CylinderGeometry,
   Float32BufferAttribute,
   Group,
   InstancedMesh,
@@ -10,6 +11,7 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
+  MeshStandardMaterial,
   PlaneGeometry,
   Quaternion,
   Scene,
@@ -37,6 +39,40 @@ export type ShibuyaCity = {
 
 const UP = new Vector3(0, 1, 0);
 
+// Real Shibuya proportions → game coords (see shibuya-spec.md). +X east, +Z south.
+type Landmark = {
+  name: string;
+  x: number;
+  z: number;
+  width: number;
+  depth: number;
+  height: number;
+  shape: "box" | "cylinder" | "taper";
+};
+
+const LANDMARKS: Landmark[] = [
+  { name: "Shibuya Scramble Square", x: 54, z: 72, width: 60, depth: 60, height: 60, shape: "taper" },
+  { name: "Shibuya Hikarie", x: 72, z: 54, width: 45, depth: 45, height: 46, shape: "box" },
+  { name: "Shibuya Stream", x: 36, z: 108, width: 40, depth: 40, height: 46, shape: "box" },
+  { name: "Shibuya 109", x: -54, z: 36, width: 36, depth: 36, height: 22, shape: "cylinder" },
+  { name: "MAGNET by 109", x: -36, z: -36, width: 30, depth: 30, height: 16, shape: "box" },
+  { name: "QFRONT", x: 0, z: -36, width: 40, depth: 28, height: 16, shape: "box" },
+  { name: "Shibuya Station", x: 18, z: 54, width: 70, depth: 36, height: 10, shape: "box" },
+];
+
+function insideAnyLandmark(x: number, z: number): boolean {
+  return LANDMARKS.some((l) => Math.abs(x - l.x) < l.width / 2 && Math.abs(z - l.z) < l.depth / 2);
+}
+
+// Position + Y-rotation for a plane whose normal points from (cx,cz) at the crossing origin,
+// pushed out by `offset` so it clads the building face facing the square.
+function faceOrigin(cx: number, cz: number, offset: number): { x: number; z: number; rotationY: number } {
+  const nx = -cx;
+  const nz = -cz;
+  const len = Math.hypot(nx, nz) || 1;
+  return { x: cx + (nx / len) * offset, z: cz + (nz / len) * offset, rotationY: Math.atan2(nx, nz) };
+}
+
 export function createShibuyaCity(scene: Scene, options: ShibuyaCityOptions = {}): ShibuyaCity {
   const look = options.look ?? cityLook;
   const random = createSeededRandom(options.seed);
@@ -53,6 +89,7 @@ export function createShibuyaCity(scene: Scene, options: ShibuyaCityOptions = {}
   addGround(group, look, materials);
   addRoads(group, look, materials);
   addBuildings(group, look, materials, random, colliders, animatedSigns);
+  addLandmarks(group, look, materials, colliders, animatedSigns);
   addSkyline(group, look, materials);
   group.add(rain);
 
@@ -105,22 +142,29 @@ function addGround(group: Group, look: CityLook, materials: CityMaterials): void
 
 function addRoads(group: Group, look: CityLook, materials: CityMaterials): void {
   const roadMaterial = materials.road;
-  const zRoad = new Mesh(new PlaneGeometry(28, look.ground.depth), roadMaterial);
+  const zRoad = new Mesh(new PlaneGeometry(22, look.ground.depth), roadMaterial);
   zRoad.name = "center scramble road z";
   zRoad.rotation.x = -Math.PI / 2;
   zRoad.position.y = 0.015;
   group.add(zRoad);
 
-  const xRoad = new Mesh(new PlaneGeometry(look.ground.width, 26), roadMaterial);
+  const xRoad = new Mesh(new PlaneGeometry(look.ground.width, 22), roadMaterial);
   xRoad.name = "center scramble road x";
   xRoad.rotation.x = -Math.PI / 2;
   xRoad.position.y = 0.02;
   group.add(xRoad);
 
-  for (const rotation of [0, Math.PI / 2, Math.PI / 4, -Math.PI / 4]) {
-    const crossing = new Mesh(new PlaneGeometry(24, 14), materials.crosswalk);
+  // 4 straight edge crosswalks + 2 diagonals long enough to span the ~50 square corner-to-corner.
+  const crossings: Array<{ w: number; h: number; rot: number }> = [
+    { w: 24, h: 14, rot: 0 },
+    { w: 24, h: 14, rot: Math.PI / 2 },
+    { w: 64, h: 16, rot: Math.PI / 4 },
+    { w: 64, h: 16, rot: -Math.PI / 4 },
+  ];
+  for (const { w, h, rot } of crossings) {
+    const crossing = new Mesh(new PlaneGeometry(w, h), materials.crosswalk);
     crossing.name = "scramble crossing stripes";
-    crossing.rotation.set(-Math.PI / 2, 0, rotation);
+    crossing.rotation.set(-Math.PI / 2, 0, rot);
     crossing.position.y = 0.045;
     group.add(crossing);
   }
@@ -149,7 +193,7 @@ function addBuildings(
       const z = startZ + row * footprint;
       const nearRoad = Math.abs(x) < 20 || Math.abs(z) < 19;
 
-      if (nearRoad || random() < 0.08) {
+      if (nearRoad || insideAnyLandmark(x, z) || random() < 0.08) {
         continue;
       }
 
@@ -215,6 +259,158 @@ function addWindowWrap(
     windows.rotation.y = face.rotation;
     group.add(windows);
   }
+}
+
+function addLandmarks(
+  group: Group,
+  look: CityLook,
+  materials: CityMaterials,
+  colliders: Box3[],
+  animatedSigns: Array<Mesh<PlaneGeometry, MeshBasicMaterial>>,
+): void {
+  // Few and distinct — individual meshes, not the instanced shell.
+  const glass = new MeshStandardMaterial({
+    color: "#0d1826",
+    roughness: 0.16,
+    metalness: 0.85,
+    emissive: new Color("#12325a"),
+    emissiveIntensity: 0.45,
+  });
+  const concrete = new MeshStandardMaterial({ color: "#20344a", roughness: 0.42, metalness: 0.28 });
+
+  for (const l of LANDMARKS) {
+    if (l.shape === "cylinder") {
+      // Shibuya 109: round fashion tower — reads distinct from the boxy grid.
+      const body = new Mesh(new CylinderGeometry(l.width / 2, l.width / 2, l.height, 24), concrete);
+      body.name = l.name;
+      body.position.set(l.x, l.height / 2, l.z);
+      body.castShadow = true;
+      group.add(body);
+      addRoofSign(group, l);
+    } else if (l.shape === "taper") {
+      // Scramble Square: tapered glass tower, clearly tallest. ponytail: 4-seg cylinder = square prism taper.
+      const radius = l.width / Math.SQRT2;
+      const tower = new Mesh(new CylinderGeometry(radius * 0.72, radius, l.height, 4), glass);
+      tower.name = l.name;
+      tower.rotation.y = Math.PI / 4;
+      tower.position.set(l.x, l.height / 2, l.z);
+      tower.castShadow = true;
+      group.add(tower);
+    } else {
+      const lot = { x: l.x, z: l.z, width: l.width, depth: l.depth, height: l.height };
+      const box = new Mesh(new BoxGeometry(l.width, l.height, l.depth), materials.building);
+      box.name = l.name;
+      box.position.set(l.x, l.height / 2, l.z);
+      box.castShadow = true;
+      box.receiveShadow = true;
+      group.add(box);
+      addWindowWrap(group, lot, materials);
+    }
+
+    colliders.push(
+      new Box3(
+        new Vector3(l.x - l.width / 2, 0, l.z - l.depth / 2),
+        new Vector3(l.x + l.width / 2, l.height, l.z + l.depth / 2),
+      ),
+    );
+  }
+
+  // Hachiko plinth — tiny landmark in the plaza just S of the crossing.
+  const plinth = new Mesh(new BoxGeometry(2, 2, 2), concrete);
+  plinth.name = "Hachiko statue plinth";
+  plinth.position.set(16, 1, 30);
+  group.add(plinth);
+  colliders.push(new Box3(new Vector3(15, 0, 29), new Vector3(17, 2, 31)));
+
+  // Signature inward-facing LED ad screens ringing the crossing.
+  const q = faceOrigin(0, -36, 14); // QFRONT hero — curved south face
+  for (const t of [-1, 0, 1]) {
+    // ponytail: segmented curve, not a real curved mesh.
+    addAdScreen(group, animatedSigns, {
+      copy: "渋谷",
+      color: "#00e5ff",
+      x: q.x + t * 9.5,
+      y: 12,
+      z: q.z - Math.abs(t) * 1.5,
+      width: 10,
+      height: 24,
+      rotationY: -t * 0.28,
+    });
+  }
+
+  const magnet = faceOrigin(-36, -36, 15);
+  addAdScreen(group, animatedSigns, {
+    copy: "MAGNET",
+    color: "#ff2f8f",
+    x: magnet.x,
+    y: 10,
+    z: magnet.z,
+    width: 14,
+    height: 18,
+    rotationY: magnet.rotationY,
+  });
+
+  const westWall = faceOrigin(-28, -6, 0); // vertical ad wall toward the 109 fork, faces E into the square
+  addAdScreen(group, animatedSigns, {
+    copy: "SALE",
+    color: "#ffd23f",
+    x: westWall.x,
+    y: 11,
+    z: westWall.z,
+    width: 10,
+    height: 20,
+    rotationY: westWall.rotationY,
+  });
+
+  const scramble = faceOrigin(54, 72, 30); // Scramble Square NW station-side board
+  addAdScreen(group, animatedSigns, {
+    copy: "SHIBUYA",
+    color: "#48ff7b",
+    x: scramble.x,
+    y: 14,
+    z: scramble.z,
+    width: 16,
+    height: 20,
+    rotationY: scramble.rotationY,
+  });
+
+  materials.all.push(glass, concrete);
+}
+
+function addRoofSign(group: Group, l: Landmark): void {
+  const face = faceOrigin(l.x, l.z, l.width / 2 + 0.1);
+  const texture = createSignTexture("109", "#101018");
+  const material = new MeshBasicMaterial({
+    map: texture,
+    color: new Color("#ffffff").multiplyScalar(1.6),
+    transparent: true,
+    toneMapped: false,
+  });
+  const sign = new Mesh(new PlaneGeometry(7, 15), material);
+  sign.name = "109 vertical roof sign";
+  sign.position.set(face.x, l.height * 0.7, face.z);
+  sign.rotation.y = face.rotationY;
+  group.add(sign);
+}
+
+function addAdScreen(
+  group: Group,
+  animatedSigns: Array<Mesh<PlaneGeometry, MeshBasicMaterial>>,
+  opts: { copy: string; color: string; x: number; y: number; z: number; width: number; height: number; rotationY: number },
+): void {
+  const texture = createSignTexture(opts.copy, opts.color);
+  const material = new MeshBasicMaterial({
+    map: texture,
+    color: new Color(opts.color).multiplyScalar(2.6),
+    transparent: true,
+    toneMapped: false,
+  });
+  const screen = new Mesh(new PlaneGeometry(opts.width, opts.height), material);
+  screen.name = "shibuya led ad screen";
+  screen.position.set(opts.x, opts.y, opts.z);
+  screen.rotation.y = opts.rotationY;
+  animatedSigns.push(screen);
+  group.add(screen);
 }
 
 function addNeonStack(

@@ -11,41 +11,120 @@
       html, body { margin: 0; height: 100%; background: #05060a; overflow: hidden; }
       canvas { display: block; }
 
+      :root {
+        --cyan: #4fe6ff;
+        --magenta: #ff4f8d;
+        --amber: #ff9a4f;
+        --ink: 6, 9, 16;
+      }
       #hud {
         position: fixed;
         inset: 0;
         pointer-events: none;
-        font: 500 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
-        color: #e8ecf5;
-        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+        font: 500 12px/1.4 ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
+        color: #eaf1fb;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+        -webkit-font-smoothing: antialiased;
       }
       #hud .panel {
         position: absolute;
-        padding: 12px 14px;
-        background: rgba(8, 10, 18, 0.55);
-        border: 1px solid rgba(150, 180, 255, 0.16);
-        border-radius: 10px;
-        backdrop-filter: blur(8px);
+        width: 250px;
+        padding: 0;
+        background: linear-gradient(160deg, rgba(var(--ink), 0.72), rgba(var(--ink), 0.52));
+        border: 1px solid rgba(120, 170, 220, 0.14);
+        border-radius: 3px;
+        backdrop-filter: blur(14px) saturate(1.2);
+        /* Notched cyber corners top-right + bottom-left. */
+        clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(160, 200, 255, 0.06);
+        overflow: hidden;
       }
-      #objective { top: 20px; left: 20px; min-width: 210px; }
-      #conditions { top: 20px; right: 20px; min-width: 200px; }
-      #narration {
-        bottom: 28px;
-        left: 50%;
-        transform: translateX(-50%);
-        max-width: 620px;
-        text-align: center;
-        font-size: 14px;
-        opacity: 0;
-        transition: opacity 0.4s ease;
-      }
-      #narration.show { opacity: 1; }
+      #objective { top: 22px; left: 22px; }
+      #conditions { top: 22px; right: 22px; }
 
-      .label { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: #7f8ca8; }
-      .big { font-size: 26px; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-      .row { display: flex; justify-content: space-between; gap: 16px; margin-top: 4px; }
-      .row span:last-child { color: #b9c6e0; }
-      .warn { color: #ff9a6b !important; }
+      .hud-head {
+        display: flex; align-items: center; gap: 7px;
+        padding: 8px 13px;
+        font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase;
+        color: #9fb2cc;
+        border-bottom: 1px solid rgba(120, 170, 220, 0.1);
+        background: rgba(var(--ink), 0.35);
+      }
+      .hud-head::before {
+        content: ''; width: 3px; height: 11px; border-radius: 1px;
+        background: var(--accent, var(--cyan));
+        box-shadow: 0 0 8px var(--accent, var(--cyan));
+      }
+      #objective { --accent: var(--magenta); }
+      .hud-head .spacer { flex: 1; }
+      .hud-body { padding: 11px 13px 13px; }
+
+      /* LIVE pill with pulsing dot. */
+      .live { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; letter-spacing: 0.12em; color: #7fd8a0; }
+      .live .dot { width: 6px; height: 6px; border-radius: 50%; background: #46e08a; box-shadow: 0 0 7px #46e08a; animation: pulse 1.6s ease-in-out infinite; }
+      .live.off { color: #6b7890; }
+      .live.off .dot { background: #6b7890; box-shadow: none; animation: none; }
+      @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.7); } }
+
+      .timer {
+        font: 700 40px/1 ui-monospace, "SF Mono", Menlo, monospace;
+        font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
+        color: #f4f8ff; margin: 2px 0 9px;
+        transition: color 0.3s;
+      }
+      .timer.urgent { color: var(--magenta); text-shadow: 0 0 18px rgba(255, 79, 141, 0.55); }
+
+      .metric { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 9px; }
+      .metric .k { font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase; color: #8091ad; }
+      .metric .v { font-size: 13px; font-variant-numeric: tabular-nums; color: #dbe6f7; }
+      .metric .v.strong { color: var(--cyan); }
+      .metric .v.warn { color: var(--amber); }
+      .metric .v.good { color: #54ffc8; }
+
+      .meter { height: 4px; margin-top: 6px; border-radius: 2px; background: rgba(140, 170, 210, 0.14); overflow: hidden; }
+      .meter > i {
+        display: block; height: 100%; width: 0%;
+        background: linear-gradient(90deg, var(--cyan), var(--magenta));
+        border-radius: 2px;
+        transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s;
+      }
+      .meter.hot > i { background: linear-gradient(90deg, var(--amber), var(--magenta)); }
+
+      #narration {
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%) translateY(6px);
+        max-width: 620px;
+        padding: 9px 18px;
+        text-align: center;
+        font-size: 13.5px; letter-spacing: 0.01em;
+        color: #f0f4fc;
+        background: linear-gradient(160deg, rgba(var(--ink), 0.66), rgba(var(--ink), 0.44));
+        border: 1px solid rgba(255, 79, 141, 0.22);
+        border-radius: 3px;
+        backdrop-filter: blur(12px);
+        opacity: 0;
+        transition: opacity 0.45s ease, transform 0.45s ease;
+      }
+      #narration.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+      #minimap-wrap {
+        position: absolute;
+        right: 22px; bottom: 22px;
+        width: 180px; height: 180px;
+        border-radius: 50%;
+        padding: 6px;
+        background: linear-gradient(160deg, rgba(var(--ink), 0.7), rgba(var(--ink), 0.5));
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(120, 170, 220, 0.16);
+        backdrop-filter: blur(10px);
+      }
+      #minimap-wrap::after {
+        content: ''; position: absolute; inset: 6px;
+        border-radius: 50%;
+        box-shadow: inset 0 0 0 2px rgba(79, 230, 255, 0.22), inset 0 0 24px rgba(79, 230, 255, 0.08);
+        pointer-events: none;
+      }
+      #minimap { width: 168px; height: 168px; border-radius: 50%; display: block; }
 
       #start {
         position: fixed;
@@ -54,18 +133,31 @@
         place-content: center;
         gap: 10px;
         text-align: center;
-        background:
-          radial-gradient(circle at 50% 42%, rgba(5, 6, 10, 0.62), rgba(5, 6, 10, 0.93)),
-          url('/cover.jpg') center / cover no-repeat;
+        background: linear-gradient(180deg, #0a0f1e 0%, #14132a 45%, #2a1740 78%, #4a1a3a 100%);
         font: 500 14px/1.6 ui-sans-serif, system-ui, sans-serif;
         color: #dfe6f5;
         cursor: pointer;
         z-index: 10;
+        overflow: hidden;
+      }
+      #start > * { position: relative; z-index: 2; }
+      #start #skyline {
+        position: absolute; inset: 0; z-index: 0;
+        width: 100%; height: 100%;
+        pointer-events: none;
+      }
+      #start::after {
+        content: ''; position: absolute; inset: 0; z-index: 1;
+        background: radial-gradient(ellipse at 50% 45%, rgba(5, 6, 10, 0.35), rgba(5, 6, 10, 0.88) 75%);
       }
       #start h1 { margin: 0; font-size: 34px; letter-spacing: -0.02em; font-weight: 650; }
       #start .jp { color: #ff5f9e; letter-spacing: 0.3em; font-size: 12px; }
       #start .dim { color: #8593b0; font-size: 12px; }
       #start.hide { display: none; }
+      @keyframes twinkle { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
+      #skyline .star { animation: twinkle 3s ease-in-out infinite; }
+      #skyline .star:nth-child(2n) { animation-duration: 4.5s; animation-delay: -1s; }
+      #skyline .star:nth-child(3n) { animation-duration: 2.5s; animation-delay: -.5s; }
     </style>
   </head>
   <body>
@@ -73,9 +165,173 @@
       <div class="panel" id="objective"></div>
       <div class="panel" id="conditions"></div>
       <div class="panel" id="narration"></div>
+      <div id="minimap-wrap">
+        <canvas id="minimap"></canvas>
+      </div>
     </div>
 
     <div id="start">
+      <svg id="skyline" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+        <defs>
+          <radialGradient id="moon" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#fff6e0" stop-opacity="1"/>
+            <stop offset="60%" stop-color="#ffe0b0" stop-opacity=".6"/>
+            <stop offset="100%" stop-color="#ffb070" stop-opacity="0"/>
+          </radialGradient>
+          <linearGradient id="fuji" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#4a3a6a"/>
+            <stop offset="55%" stop-color="#2a2340"/>
+            <stop offset="100%" stop-color="#150f28"/>
+          </linearGradient>
+          <linearGradient id="snow" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#f0e8ff" stop-opacity=".95"/>
+            <stop offset="100%" stop-color="#f0e8ff" stop-opacity="0"/>
+          </linearGradient>
+          <linearGradient id="far" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#1a1830" stop-opacity=".9"/>
+            <stop offset="100%" stop-color="#0a0812"/>
+          </linearGradient>
+          <linearGradient id="mid" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#0d0a1e"/>
+            <stop offset="100%" stop-color="#050410"/>
+          </linearGradient>
+          <linearGradient id="water" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#1a1030"/>
+            <stop offset="100%" stop-color="#08050f"/>
+          </linearGradient>
+        </defs>
+
+        <!-- moon -->
+        <circle cx="1280" cy="180" r="90" fill="url(#moon)"/>
+        <circle cx="1280" cy="180" r="52" fill="#fff2d6" opacity=".9"/>
+
+        <!-- stars -->
+        <g fill="#fff">
+          <circle class="star" cx="120" cy="90" r="1.2"/>
+          <circle class="star" cx="260" cy="140" r="1"/>
+          <circle class="star" cx="410" cy="60" r="1.4"/>
+          <circle class="star" cx="540" cy="180" r="1"/>
+          <circle class="star" cx="700" cy="110" r="1.2"/>
+          <circle class="star" cx="880" cy="70" r="1"/>
+          <circle class="star" cx="1050" cy="150" r="1.3"/>
+          <circle class="star" cx="1450" cy="90" r="1.1"/>
+          <circle class="star" cx="1540" cy="200" r="1"/>
+          <circle class="star" cx="180" cy="220" r=".9"/>
+          <circle class="star" cx="620" cy="40" r="1.1"/>
+          <circle class="star" cx="960" cy="230" r="1"/>
+        </g>
+
+        <!-- Mt Fuji -->
+        <path d="M 0 620 L 260 320 L 340 380 L 420 330 L 700 620 Z" fill="url(#fuji)"/>
+        <path d="M 220 350 L 260 320 L 340 380 L 420 330 L 460 360 L 420 380 L 380 360 L 340 400 L 300 370 L 260 390 L 240 370 Z" fill="url(#snow)"/>
+
+        <!-- far skyline -->
+        <g fill="url(#far)">
+          <rect x="480" y="500" width="60" height="140"/>
+          <rect x="540" y="470" width="50" height="170"/>
+          <rect x="590" y="520" width="70" height="120"/>
+          <rect x="1120" y="480" width="55" height="160"/>
+          <rect x="1175" y="510" width="70" height="130"/>
+          <rect x="1245" y="490" width="60" height="150"/>
+          <rect x="1305" y="520" width="80" height="120"/>
+          <rect x="1385" y="500" width="55" height="140"/>
+          <rect x="1440" y="470" width="65" height="170"/>
+          <rect x="1505" y="510" width="95" height="130"/>
+        </g>
+
+        <!-- Tokyo Skytree (left) -->
+        <g>
+          <line x1="360" y1="640" x2="360" y2="220" stroke="#d94a5f" stroke-width="4"/>
+          <polygon points="345,640 375,640 368,430 352,430" fill="#e8546b"/>
+          <polygon points="352,430 368,430 372,340 348,340" fill="#f56a7f"/>
+          <circle cx="360" cy="340" r="18" fill="none" stroke="#ff8fa8" stroke-width="3"/>
+          <circle cx="360" cy="290" r="12" fill="none" stroke="#ff8fa8" stroke-width="2.5"/>
+          <line x1="360" y1="278" x2="360" y2="220" stroke="#ff8fa8" stroke-width="2"/>
+          <circle cx="360" cy="220" r="3" fill="#fff2d6"/>
+        </g>
+
+        <!-- Tokyo Tower (centre-left) -->
+        <g stroke="#ff6a4a" stroke-width="2.5" fill="none">
+          <polygon points="720,640 780,640 770,500 730,500" fill="#ff7a55" stroke="none"/>
+          <polygon points="730,500 770,500 762,400 738,400" fill="#ff8a65" stroke="none"/>
+          <polygon points="738,400 762,400 755,340 745,340" fill="#ffa075" stroke="none"/>
+          <line x1="750" y1="340" x2="750" y2="290" stroke="#ff9a6b" stroke-width="3"/>
+          <line x1="730" y1="500" x2="770" y2="400"/>
+          <line x1="770" y1="500" x2="730" y2="400"/>
+          <line x1="738" y1="400" x2="762" y2="340"/>
+          <line x1="762" y1="400" x2="738" y2="340"/>
+          <circle cx="750" cy="290" r="3" fill="#fff2d6" stroke="none"/>
+        </g>
+
+        <!-- Statue of Liberty (Odaiba) -->
+        <g fill="#2a4a52">
+          <rect x="895" y="560" width="34" height="80"/>
+          <polygon points="895,560 929,560 924,530 900,530" fill="#3a5a62"/>
+          <rect x="908" y="470" width="8" height="60"/>
+          <circle cx="912" cy="460" r="10" fill="#3a5a62"/>
+          <polygon points="902,455 922,455 912,425" fill="#3a5a62"/>
+          <line x1="912" y1="470" x2="900" y2="440" stroke="#3a5a62" stroke-width="3"/>
+          <polygon points="895,442 902,438 900,432" fill="#ffcf6a"/>
+        </g>
+
+        <!-- mid skyline -->
+        <g fill="url(#mid)">
+          <rect x="0" y="560" width="80" height="80"/>
+          <rect x="80" y="530" width="60" height="110"/>
+          <rect x="140" y="560" width="90" height="80"/>
+          <rect x="230" y="540" width="70" height="100"/>
+          <rect x="820" y="550" width="70" height="90"/>
+          <rect x="960" y="530" width="60" height="110"/>
+          <rect x="1020" y="560" width="80" height="80"/>
+          <rect x="1100" y="540" width="60" height="100"/>
+        </g>
+
+        <!-- lit windows -->
+        <g fill="#ffcf6a" opacity=".85">
+          <rect x="90" y="545" width="4" height="6"/><rect x="100" y="545" width="4" height="6"/>
+          <rect x="110" y="560" width="4" height="6"/><rect x="120" y="575" width="4" height="6"/>
+          <rect x="90" y="590" width="4" height="6"/><rect x="120" y="605" width="4" height="6"/>
+          <rect x="245" y="555" width="4" height="6"/><rect x="255" y="570" width="4" height="6"/>
+          <rect x="275" y="585" width="4" height="6"/><rect x="285" y="600" width="4" height="6"/>
+          <rect x="500" y="520" width="3" height="5"/><rect x="510" y="535" width="3" height="5"/>
+          <rect x="555" y="490" width="3" height="5"/><rect x="565" y="505" width="3" height="5"/>
+          <rect x="605" y="540" width="3" height="5"/><rect x="625" y="560" width="3" height="5"/>
+          <rect x="835" y="565" width="3" height="5"/><rect x="855" y="580" width="3" height="5"/>
+          <rect x="975" y="545" width="3" height="5"/><rect x="1000" y="560" width="3" height="5"/>
+          <rect x="1035" y="575" width="3" height="5"/><rect x="1065" y="590" width="3" height="5"/>
+          <rect x="1140" y="500" width="3" height="5"/><rect x="1195" y="530" width="3" height="5"/>
+          <rect x="1260" y="510" width="3" height="5"/><rect x="1320" y="540" width="3" height="5"/>
+          <rect x="1400" y="520" width="3" height="5"/><rect x="1460" y="490" width="3" height="5"/>
+          <rect x="1520" y="530" width="3" height="5"/><rect x="1560" y="550" width="3" height="5"/>
+        </g>
+
+        <!-- water -->
+        <rect x="0" y="640" width="1600" height="260" fill="url(#water)"/>
+
+        <!-- Rainbow Bridge silhouette across water -->
+        <g stroke="#ff5f9e" stroke-width="2" fill="none" opacity=".7">
+          <path d="M 850 700 Q 1000 640 1150 700"/>
+          <line x1="870" y1="700" x2="870" y2="672"/>
+          <line x1="920" y1="700" x2="920" y2="658"/>
+          <line x1="970" y1="700" x2="970" y2="650"/>
+          <line x1="1020" y1="700" x2="1020" y2="648"/>
+          <line x1="1070" y1="700" x2="1070" y2="655"/>
+          <line x1="1120" y1="700" x2="1120" y2="672"/>
+          <rect x="862" y="670" width="6" height="60" fill="#ff5f9e"/>
+          <rect x="1132" y="670" width="6" height="60" fill="#ff5f9e"/>
+        </g>
+
+        <!-- water reflections -->
+        <g stroke="#ffcf6a" stroke-width="1" opacity=".3">
+          <line x1="360" y1="640" x2="360" y2="720"/>
+          <line x1="750" y1="640" x2="750" y2="720"/>
+          <line x1="912" y1="640" x2="912" y2="700"/>
+        </g>
+        <g stroke="#ff5f9e" stroke-width="1" opacity=".25">
+          <line x1="1000" y1="700" x2="1000" y2="760"/>
+        </g>
+      </svg>
+
       <div class="jp">オーバードライブ東京</div>
       <h1>Overdrive Tokyo</h1>
       <div>Deliver the parcel before the timer runs out.</div>
