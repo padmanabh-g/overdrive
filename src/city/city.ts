@@ -1,7 +1,9 @@
 import {
+  AdditiveBlending,
   Box3,
   BoxGeometry,
   BufferGeometry,
+  CircleGeometry,
   Color,
   ConeGeometry,
   CylinderGeometry,
@@ -16,6 +18,7 @@ import {
   PlaneGeometry,
   Quaternion,
   Scene,
+  SphereGeometry,
   Vector3,
 } from "three";
 
@@ -27,7 +30,7 @@ import {
   shouldEnableCrowdEscapeCombatSubmode,
   type CrowdEscapeCombatSubmode,
 } from "./submodes/crowdEscapeCombat";
-import { createCrosswalkTexture, createSignTexture, createWindowTexture } from "./textures";
+import { createCrosswalkTexture, createLogoTexture, createSignTexture, createWindowTexture } from "./textures";
 
 export type ShibuyaCityOptions = {
   look?: CityLook;
@@ -99,10 +102,12 @@ export function createShibuyaCity(scene: Scene, options: ShibuyaCityOptions = {}
 
   addGround(group, look, materials);
   addRoads(group, look, materials);
+  addStreetLamps(group, look);
   addDistrictLandmarks(group, look, colliders);
   addBuildings(group, look, materials, random, colliders, animatedSigns);
   addLandmarks(group, look, materials, colliders, animatedSigns);
   addBrandSigns(group, animatedSigns);
+  addStarbucks(group, animatedSigns);
   addKonbini(group, materials);
   addSkyline(group, look, materials);
   if (crowdEscapeCombat) {
@@ -188,6 +193,85 @@ function addRoads(group: Group, look: CityLook, materials: CityMaterials): void 
     crossing.position.y = 0.045;
     group.add(crossing);
   }
+}
+
+// Street lamps line both scramble roads so the walkable corridors aren't dark alleys.
+// Warm emissive head + a fake ground glow pool (no real point lights — matches the
+// scene's all-emissive lighting model and keeps 1400-NPC frame cost flat).
+function addStreetLamps(group: Group, look: CityLook): void {
+  const postMat = new MeshStandardMaterial({ color: "#12161d", roughness: 0.6, metalness: 0.4 });
+  const headMat = new MeshBasicMaterial({ color: new Color("#ffd6a0").multiplyScalar(2.4), toneMapped: false });
+  const poolMat = new MeshBasicMaterial({
+    color: "#ffb867",
+    transparent: true,
+    opacity: 0.22,
+    blending: AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const postGeo = new CylinderGeometry(0.12, 0.16, 5.4, 8);
+  const headGeo = new SphereGeometry(0.34, 10, 8);
+  const poolGeo = new CircleGeometry(3.6, 24);
+
+  const place = (x: number, z: number): void => {
+    const post = new Mesh(postGeo, postMat);
+    post.position.set(x, 2.7, z);
+    group.add(post);
+    const head = new Mesh(headGeo, headMat);
+    head.position.set(x, 5.4, z);
+    group.add(head);
+    const pool = new Mesh(poolGeo, poolMat);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.set(x, 0.06, z);
+    group.add(pool);
+  };
+
+  const halfW = look.ground.width / 2;
+  const halfD = look.ground.depth / 2;
+  const vx = look.ground.verticalRoadWidth / 2 + 1.6;
+  for (let z = -halfD + 14; z <= halfD - 14; z += 18) {
+    place(-vx, z);
+    place(vx, z);
+  }
+  const hz = look.ground.horizontalRoadWidth / 2 + 1.6;
+  for (let x = -halfW + 14; x <= halfW - 14; x += 18) {
+    place(x, -hz);
+    place(x, hz);
+  }
+}
+
+// Iconic Shibuya Starbucks overlooking the scramble from the QFRONT face (x:0 z:-36).
+// Green lit ground band + round siren logo, angled inward at the crossing.
+function addStarbucks(group: Group, animatedSigns: Array<Mesh<PlaneGeometry, MeshBasicMaterial>>): void {
+  const f = faceOrigin(0, -36, 14.3);
+
+  const band = new Mesh(
+    new PlaneGeometry(22, 4.2),
+    new MeshBasicMaterial({ color: new Color("#00704a").multiplyScalar(1.9), transparent: true, opacity: 0.92, toneMapped: false }),
+  );
+  band.name = "Starbucks storefront band";
+  band.position.set(f.x, 3.2, f.z);
+  band.rotation.y = f.rotationY;
+  group.add(band);
+
+  const logo = new Mesh(
+    new PlaneGeometry(7, 7),
+    new MeshBasicMaterial({ map: createLogoTexture("/logos/starbucks.svg"), color: new Color("#ffffff").multiplyScalar(1.4), transparent: true, toneMapped: false }),
+  );
+  logo.name = "Starbucks siren logo";
+  logo.position.set(f.x, 9.6, f.z);
+  logo.rotation.y = f.rotationY;
+  animatedSigns.push(logo);
+  group.add(logo);
+
+  const pool = new Mesh(
+    new CircleGeometry(6, 32),
+    new MeshBasicMaterial({ color: "#00a86b", transparent: true, opacity: 0.24, blending: AdditiveBlending, depthWrite: false, toneMapped: false }),
+  );
+  pool.name = "Starbucks ground glow";
+  pool.rotation.x = -Math.PI / 2;
+  pool.position.set(f.x, 0.055, f.z);
+  group.add(pool);
 }
 
 function addBuildings(
@@ -405,9 +489,12 @@ function addBrandSigns(
   group: Group,
   animatedSigns: Array<Mesh<PlaneGeometry, MeshBasicMaterial>>,
 ): void {
+  // `logo` → real brand SVG on a lit lightbox plate (landscape 2:1). Brands with no free
+  // logo keep the neon wordmark (`copy`/`color`) as a fallback.
   const brands: Array<{
-    copy: string;
-    color: string;
+    logo?: string;
+    copy?: string;
+    color?: string;
     fx: number;
     fz: number;
     offset: number;
@@ -415,52 +502,86 @@ function addBrandSigns(
     width: number;
     height: number;
   }> = [
-    // Station side (Shibuya Station x:18 z:54) — JR green, Tokyu red, Metro blue.
-    { copy: "JR渋谷駅", color: "#4caf50", fx: 18, fz: 40, offset: 0, y: 16, width: 14, height: 9 },
-    { copy: "東急", color: "#e53935", fx: 30, fz: 44, offset: 0, y: 20, width: 8, height: 12 },
+    // Station side (Shibuya Station x:18 z:54).
+    { logo: "jr-east", fx: 18, fz: 40, offset: 0, y: 16, width: 14, height: 7 },
+    { logo: "tokyu", fx: 30, fz: 44, offset: 0, y: 20, width: 11, height: 5.5 },
     { copy: "東京メトロ", color: "#0d47a1", fx: 6, fz: 44, offset: 0, y: 11, width: 12, height: 8 },
     // Hikarie (72,54) face.
-    { copy: "Bic Camera", color: "#d32f2f", fx: 72, fz: 54, offset: 24, y: 18, width: 13, height: 16 },
+    { logo: "biccamera", fx: 72, fz: 54, offset: 24, y: 18, width: 14, height: 7 },
     // Scramble Square (54,72) face — stacked with the SHIBUYA board already there.
     { copy: "TSUTAYA", color: "#1565c0", fx: 54, fz: 72, offset: 31, y: 22, width: 14, height: 10 },
     // 109 side (-54,36).
-    { copy: "渋谷PARCO", color: "#eeeeee", fx: -40, fz: 26, offset: 0, y: 19, width: 13, height: 9 },
+    { logo: "parco", fx: -40, fz: 26, offset: 0, y: 19, width: 13, height: 6.5 },
     { copy: "西武", color: "#00897b", fx: -46, fz: 14, offset: 0, y: 15, width: 8, height: 12 },
     // QFRONT / north corridor (0,-36) cluster around the hero curve.
-    { copy: "ドン・キホーテ", color: "#ffd21a", fx: -18, fz: -30, offset: 0, y: 9, width: 12, height: 8 },
-    { copy: "スターバックス", color: "#00704a", fx: 20, fz: -30, offset: 0, y: 10, width: 11, height: 8 },
+    { logo: "don-quijote", fx: -18, fz: -30, offset: 0, y: 9, width: 12, height: 6 },
     { copy: "カラオケ館", color: "#ff2f8f", fx: 30, fz: -22, offset: 0, y: 17, width: 10, height: 14 },
-    // Corridor faces — extra brand density, varied height.
-    { copy: "ファミリーマート", color: "#2ea44f", fx: -30, fz: 8, offset: 0, y: 13, width: 12, height: 8 },
-    { copy: "セブン-イレブン", color: "#ff7a1a", fx: 34, fz: 6, offset: 0, y: 12, width: 12, height: 8 },
-    { copy: "無印良品", color: "#8d2f2f", fx: -12, fz: 40, offset: 0, y: 21, width: 10, height: 8 },
-    { copy: "ユニクロ", color: "#e60012", fx: 44, fz: 30, offset: 0, y: 14, width: 11, height: 9 },
+    // Corridor faces — extra brand density.
+    { logo: "familymart", fx: -30, fz: 8, offset: 0, y: 13, width: 12, height: 6 },
+    { logo: "seven-eleven", fx: 34, fz: 6, offset: 0, y: 12, width: 11, height: 5.5 },
+    { logo: "muji", fx: -12, fz: 40, offset: 0, y: 21, width: 11, height: 5.5 },
+    { logo: "uniqlo", fx: 44, fz: 30, offset: 0, y: 14, width: 10, height: 5 },
     { copy: "ビックロ", color: "#7c4dff", fx: -34, fz: -14, offset: 0, y: 18, width: 9, height: 12 },
-    { copy: "マツモトキヨシ", color: "#ffd21a", fx: 12, fz: -22, offset: 0, y: 20, width: 11, height: 8 },
+    { logo: "matsumoto-kiyoshi", fx: 12, fz: -22, offset: 0, y: 20, width: 12, height: 6 },
   ];
 
   for (const b of brands) {
     const f = faceOrigin(b.fx, b.fz, b.offset);
-    addAdScreen(group, animatedSigns, {
-      copy: b.copy,
-      color: b.color,
-      x: f.x,
-      y: b.y,
-      z: f.z,
-      width: b.width,
-      height: b.height,
-      rotationY: f.rotationY,
-    });
+    if (b.logo) {
+      addLogoBoard(group, animatedSigns, {
+        url: `/logos/${b.logo}.svg`,
+        x: f.x,
+        y: b.y,
+        z: f.z,
+        width: b.width,
+        height: b.height,
+        rotationY: f.rotationY,
+      });
+    } else {
+      addAdScreen(group, animatedSigns, {
+        copy: b.copy ?? "",
+        color: b.color ?? "#ffffff",
+        x: f.x,
+        y: b.y,
+        z: f.z,
+        width: b.width,
+        height: b.height,
+        rotationY: f.rotationY,
+      });
+    }
   }
+}
+
+// Lit brand-logo board: real SVG on a white lightbox plate. Bright white catches bloom and
+// pulses with the shared animatedSigns loop.
+function addLogoBoard(
+  group: Group,
+  animatedSigns: Array<Mesh<PlaneGeometry, MeshBasicMaterial>>,
+  opts: { url: string; x: number; y: number; z: number; width: number; height: number; rotationY: number },
+): void {
+  const board = new Mesh(
+    new PlaneGeometry(opts.width, opts.height),
+    new MeshBasicMaterial({
+      map: createLogoTexture(opts.url),
+      color: new Color("#ffffff").multiplyScalar(1.25),
+      transparent: true,
+      toneMapped: false,
+    }),
+  );
+  board.name = "brand logo board";
+  board.position.set(opts.x, opts.y, opts.z);
+  board.rotation.y = opts.rotationY;
+  animatedSigns.push(board);
+  group.add(board);
 }
 
 // Konbini storefronts framing the crossing corners — pure set dressing, no colliders.
 // They sit at the diagonal corners, clear of the x/z axis walking corridors, and the
 // pickups live on the open ground in front of them.
 function addKonbini(group: Group, materials: CityMaterials): void {
-  const stores: Array<{ name: string; x: number; z: number; copy: string; color: string }> = [
-    { name: "FamilyMart konbini", x: -26, z: -26, copy: "ファミマ", color: "#2ea44f" },
-    { name: "7-Eleven konbini", x: 26, z: -26, copy: "セブン", color: "#ff7a1a" },
+  const stores: Array<{ name: string; x: number; z: number; logo: string }> = [
+    { name: "FamilyMart konbini", x: -26, z: -26, logo: "familymart" },
+    { name: "7-Eleven konbini", x: 26, z: -26, logo: "seven-eleven" },
   ];
 
   for (const s of stores) {
@@ -471,18 +592,17 @@ function addKonbini(group: Group, materials: CityMaterials): void {
     shell.receiveShadow = true;
     group.add(shell);
 
-    const face = faceOrigin(s.x, s.z, 3.2); // sign on the face toward the crossing origin
-    const texture = createSignTexture(s.copy, s.color);
+    const face = faceOrigin(s.x, s.z, 3.2); // lit lightbox on the face toward the crossing
     const sign = new Mesh(
-      new PlaneGeometry(6, 2.4),
+      new PlaneGeometry(6.4, 3.2),
       new MeshBasicMaterial({
-        map: texture,
-        color: new Color(s.color).multiplyScalar(2.4),
+        map: createLogoTexture(`/logos/${s.logo}.svg`),
+        color: new Color("#ffffff").multiplyScalar(1.25),
         transparent: true,
         toneMapped: false,
       }),
     );
-    sign.name = `${s.name} neon sign`;
+    sign.name = `${s.name} lightbox sign`;
     sign.position.set(face.x, 5, face.z);
     sign.rotation.y = face.rotationY;
     group.add(sign);

@@ -96,6 +96,51 @@ export function createSignTexture(copy: string, background: string, foreground =
   });
 }
 
+// Real brand SVG (same-origin from /logos, so the canvas isn't tainted) drawn onto a lit
+// white lightbox plate — how Japanese storefront signs actually read at night, and bright
+// enough to catch bloom. Returns immediately with the blank plate; the logo paints on load.
+export function createLogoTexture(url: string): CanvasTexture {
+  const W = 640
+  const H = 320
+  const canvas = document.createElement("canvas")
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext("2d")
+  if (!ctx) {
+    throw new Error("Canvas 2D context is unavailable.")
+  }
+
+  const plate = (): void => {
+    ctx.clearRect(0, 0, W, H)
+    ctx.fillStyle = "#f7f8fa"
+    ctx.beginPath()
+    ctx.roundRect(10, 10, W - 20, H - 20, 26)
+    ctx.fill()
+    ctx.lineWidth = 6
+    ctx.strokeStyle = "rgba(255,255,255,0.85)"
+    ctx.stroke()
+  }
+  plate()
+
+  const texture = new CanvasTexture(canvas)
+  texture.colorSpace = SRGBColorSpace
+  texture.minFilter = LinearFilter
+  texture.magFilter = LinearFilter
+
+  const img = new Image()
+  img.onload = () => {
+    plate()
+    const pad = 48
+    const scale = Math.min((W - pad * 2) / img.width, (H - pad * 2) / img.height)
+    const w = img.width * scale
+    const h = img.height * scale
+    ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h)
+    texture.needsUpdate = true
+  }
+  img.src = url
+  return texture
+}
+
 export function createCrosswalkTexture(): CanvasTexture {
   return createCanvasTexture(512, 512, (ctx, width, height) => {
     ctx.clearRect(0, 0, width, height);
