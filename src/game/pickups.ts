@@ -5,13 +5,18 @@ import type { Player } from './player'
 const PICK_RADIUS = 1.7
 const RESPAWN = 8
 
-type Kind = 'onigiri' | 'pocari' | 'beer'
+export type Kind = 'onigiri' | 'pocari' | 'beer'
 
 const COLOR: Record<Kind, number> = {
   onigiri: 0xf4f0e6,
   pocari: 0x3aa0ff,
   beer: 0xe0a020,
 }
+
+// Grabbing anything scores — the buffs more than the poison.
+const POINTS: Record<Kind, number> = { onigiri: 50, pocari: 50, beer: 25 }
+
+export type PickupMarker = { x: number; z: number; kind: Kind; active: boolean }
 
 type Pickup = {
   kind: Kind
@@ -47,8 +52,10 @@ export class Pickups {
     }
   }
 
-  update(dt: number, player: Player): void {
+  /** Returns points scored this frame (0 unless a pickup was grabbed). */
+  update(dt: number, player: Player): number {
     const t = performance.now() * 0.001
+    let scored = 0
     for (const p of this.picks) {
       if (p.respawn > 0) {
         p.respawn -= dt
@@ -69,9 +76,16 @@ export class Pickups {
           player.buff(1.35, 6)
           audio.sfx('pickup')
         }
+        scored += POINTS[p.kind]
         p.mesh.visible = false
         p.respawn = RESPAWN
       }
     }
+    return scored
+  }
+
+  /** World positions + kind for the minimap; `active` false while collected. */
+  markers(): PickupMarker[] {
+    return this.picks.map((p) => ({ x: p.mesh.position.x, z: p.mesh.position.z, kind: p.kind, active: p.respawn <= 0 }))
   }
 }

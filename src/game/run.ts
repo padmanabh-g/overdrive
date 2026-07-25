@@ -15,6 +15,7 @@ export class Run {
   parcelStolen = false
   readonly total = 3
   delivered = 0
+  score = 0
   readonly dropPoint = new THREE.Vector3()
   private surgeFired = false
 
@@ -52,7 +53,12 @@ export class Run {
     this.surgeFired = false
     this.parcelStolen = false
     this.delivered = 0
+    this.score = 0
     this.pickDropPoint(playerPos)
+  }
+
+  addScore(points: number): void {
+    this.score += points
   }
 
   /** Encounters bleed time off the clock; the lost-path fires next frame if it hits 0. */

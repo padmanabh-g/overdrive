@@ -1,4 +1,11 @@
 import type { Box3, Vector3 } from 'three'
+import type { PickupMarker } from '../game/pickups'
+
+const PICKUP_COLOR: Record<string, string> = {
+  onigiri: '#f4f0e6',
+  pocari: '#3aa0ff',
+  beer: '#e0a020',
+}
 
 const RANGE = 78 // world units from map centre to edge
 const SIZE = 180 // css px (canvas is DPR-scaled)
@@ -38,9 +45,17 @@ export class Minimap {
     }))
   }
 
-  render(player: Vector3, yaw: number, target: Vector3, elapsed: number): void {
+  render(player: Vector3, yaw: number, target: Vector3, elapsed: number, pickups: PickupMarker[] = []): void {
     const { ctx, r } = this
     const s = r / RANGE
+    const cos = Math.cos(yaw)
+    const sin = Math.sin(yaw)
+    // World → rotated minimap px, sharing the player-centred heading-up transform.
+    const toScreen = (wx: number, wz: number): { x: number; y: number } => {
+      const dx = wx - player.x
+      const dz = wz - player.z
+      return { x: r + s * (dx * cos - dz * sin), y: r + s * (dx * sin + dz * cos) }
+    }
 
     ctx.clearRect(0, 0, r * 2, r * 2)
     ctx.save()
@@ -75,12 +90,9 @@ export class Minimap {
     ctx.restore()
 
     // Drop target — pulsing pin, clamped to the ring with a chevron if off-map.
-    const rx = target.x - player.x
-    const rz = target.z - player.z
-    const cos = Math.cos(yaw)
-    const sin = Math.sin(yaw)
-    let tx = r + s * (rx * cos - rz * sin)
-    let ty = r + s * (rx * sin + rz * cos)
+    const pin = toScreen(target.x, target.z)
+    let tx = pin.x
+    let ty = pin.y
     const dist = Math.hypot(tx - r, ty - r)
     const edge = r - 12
     const offMap = dist > edge
@@ -100,6 +112,25 @@ export class Minimap {
       ctx.beginPath()
       ctx.arc(tx, ty, 5 + pulse * 6, 0, Math.PI * 2)
       ctx.stroke()
+    }
+
+    // Pickup icons — small filled dots coloured by kind; hollow while collected.
+    for (const p of pickups) {
+      const { x, y } = toScreen(p.x, p.z)
+      if (Math.hypot(x - r, y - r) > r - 6) continue
+      ctx.beginPath()
+      ctx.arc(x, y, 3.4, 0, Math.PI * 2)
+      if (p.active) {
+        ctx.fillStyle = PICKUP_COLOR[p.kind] ?? '#ffffff'
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(10, 12, 20, 0.9)'
+        ctx.lineWidth = 1
+        ctx.stroke()
+      } else {
+        ctx.strokeStyle = 'rgba(150, 170, 200, 0.5)'
+        ctx.lineWidth = 1
+        ctx.stroke()
+      }
     }
 
     ctx.restore() // drop clip

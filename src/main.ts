@@ -142,7 +142,7 @@ function frame(): void {
   wasOnRed = onRed
 
   player.update(dt, city.colliders, bounds, Math.min(1, drag + (onRed ? 0.5 : 0)))
-  pickups.update(dt, player)
+  run.addScore(pickups.update(dt, player))
   player.updateCamera(camera, dt)
   crowd.update(dt, player.position, density)
   if (crowd.hitByDrunk) {
@@ -181,7 +181,7 @@ function frame(): void {
     updateConditions(weather, rail, density, raining)
   }
 
-  minimap.render(player.position, player.yaw, run.dropPoint, elapsed)
+  minimap.render(player.position, player.yaw, run.dropPoint, elapsed, pickups.markers())
 
   pipeline.render(dt)
   requestAnimationFrame(frame)

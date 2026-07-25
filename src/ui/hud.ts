@@ -35,6 +35,7 @@ function build(): void {
     `Mission<span class="spacer"></span>渋谷便`,
     `<div class="timer" id="hud-timer">--:--</div>` +
       metric('Objective', 'hud-obj') +
+      metric('Score', 'hud-score') +
       metric('Crowd drag', 'hud-drag-v') +
       meter('hud-drag-m'),
   )
@@ -76,6 +77,8 @@ export function updateObjective(run: Run, distance: number, drag: number): void 
   if (run.state === 'won') set('hud-obj', 'DELIVERED', 'v good')
   else if (run.state === 'lost') set('hud-obj', 'TIME OUT · R', 'v warn')
   else set('hud-obj', `${run.delivered}/${run.total} · ${Math.round(distance)} m`, 'v strong')
+
+  set('hud-score', String(run.score), 'v strong')
 
   set('hud-drag-v', `${Math.round(drag * 100)}%`, drag > 0.6 ? 'v warn' : 'v')
   fill('hud-drag-m', drag, drag > 0.6)
