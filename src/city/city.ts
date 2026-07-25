@@ -3,6 +3,8 @@ import {
   BoxGeometry,
   BufferGeometry,
   Color,
+  ConeGeometry,
+  CylinderGeometry,
   Float32BufferAttribute,
   Group,
   InstancedMesh,
@@ -16,13 +18,14 @@ import {
   Vector3,
 } from "three";
 
-import { cityLook, type CityLook } from "./look";
+import { cityLook, cityLooks, cloneCityLook, type CityLook, type DistrictId } from "./look";
 import { applyLookToMaterials, createCityMaterials, type CityMaterials } from "./materials";
 import { createSeededRandom, pick } from "./random";
 import { createCrosswalkTexture, createSignTexture, createWindowTexture } from "./textures";
 
 export type ShibuyaCityOptions = {
   look?: CityLook;
+  district?: DistrictId;
   seed?: number;
 };
 
@@ -38,10 +41,10 @@ export type ShibuyaCity = {
 const UP = new Vector3(0, 1, 0);
 
 export function createShibuyaCity(scene: Scene, options: ShibuyaCityOptions = {}): ShibuyaCity {
-  const look = options.look ?? cityLook;
+  const look = options.look ?? (options.district ? cloneCityLook(cityLooks[options.district]) : cityLook);
   const random = createSeededRandom(options.seed);
   const group = new Group();
-  group.name = "Shibuya city art";
+  group.name = `${look.district.label} city art`;
 
   const windowTexture = createWindowTexture(look, random);
   const crosswalkTexture = createCrosswalkTexture();
@@ -52,6 +55,7 @@ export function createShibuyaCity(scene: Scene, options: ShibuyaCityOptions = {}
 
   addGround(group, look, materials);
   addRoads(group, look, materials);
+  addDistrictLandmarks(group, look, colliders);
   addBuildings(group, look, materials, random, colliders, animatedSigns);
   addSkyline(group, look, materials);
   group.add(rain);
@@ -105,13 +109,13 @@ function addGround(group: Group, look: CityLook, materials: CityMaterials): void
 
 function addRoads(group: Group, look: CityLook, materials: CityMaterials): void {
   const roadMaterial = materials.road;
-  const zRoad = new Mesh(new PlaneGeometry(28, look.ground.depth), roadMaterial);
+  const zRoad = new Mesh(new PlaneGeometry(look.ground.verticalRoadWidth, look.ground.depth), roadMaterial);
   zRoad.name = "center scramble road z";
   zRoad.rotation.x = -Math.PI / 2;
   zRoad.position.y = 0.015;
   group.add(zRoad);
 
-  const xRoad = new Mesh(new PlaneGeometry(look.ground.width, 26), roadMaterial);
+  const xRoad = new Mesh(new PlaneGeometry(look.ground.width, look.ground.horizontalRoadWidth), roadMaterial);
   xRoad.name = "center scramble road x";
   xRoad.rotation.x = -Math.PI / 2;
   xRoad.position.y = 0.02;
@@ -147,7 +151,7 @@ function addBuildings(
     for (let col = 0; col < look.buildings.columns; col += 1) {
       const x = startX + col * footprint;
       const z = startZ + row * footprint;
-      const nearRoad = Math.abs(x) < 20 || Math.abs(z) < 19;
+      const nearRoad = Math.abs(x) < look.ground.verticalRoadWidth * 0.72 || Math.abs(z) < look.ground.horizontalRoadWidth * 0.72;
 
       if (nearRoad || random() < 0.08) {
         continue;
@@ -223,7 +227,7 @@ function addNeonStack(
   lot: { x: number; z: number; width: number; depth: number; height: number },
   animatedSigns: Array<Mesh<PlaneGeometry, MeshBasicMaterial>>,
 ): void {
-  if (lot.height < look.buildings.minHeight + 5 || random() < 0.35) {
+  if (lot.height < look.buildings.minHeight + 5 || random() > look.neon.signChance) {
     return;
   }
 
@@ -275,6 +279,208 @@ function addReflection(group: Group, look: CityLook, sign: Mesh, color: string):
   reflection.rotation.x = -Math.PI / 2;
   reflection.rotation.z = sign.rotation.y;
   group.add(reflection);
+}
+
+function addDistrictLandmarks(group: Group, look: CityLook, colliders: Box3[]): void {
+  if (look.district.id === "tokyo") {
+    addTokyoStationGlow(group, look);
+    return;
+  }
+
+  if (look.district.id === "roppongi") {
+    addRoppongiTower(group, colliders);
+    return;
+  }
+
+  if (look.district.id === "tokyo-tower") {
+    addTokyoTowerArea(group, colliders);
+    return;
+  }
+
+  if (look.district.id === "kyoto") {
+    addKyotoLandmarks(group, look, colliders);
+  }
+}
+
+function addTokyoStationGlow(group: Group, look: CityLook): void {
+  const amber = new MeshBasicMaterial({
+    color: "#ffbf6d",
+    transparent: true,
+    opacity: 0.74,
+    toneMapped: false,
+  });
+  const glass = new MeshBasicMaterial({
+    color: "#9edcff",
+    transparent: true,
+    opacity: 0.32,
+    toneMapped: false,
+  });
+
+  const platformNorth = new Mesh(new PlaneGeometry(look.ground.width * 0.72, 2.6), amber);
+  platformNorth.name = "Tokyo station amber platform glow";
+  platformNorth.rotation.x = -Math.PI / 2;
+  platformNorth.position.set(0, 0.07, look.ground.horizontalRoadWidth * 0.72);
+  group.add(platformNorth);
+
+  const platformSouth = platformNorth.clone();
+  platformSouth.position.z = -look.ground.horizontalRoadWidth * 0.72;
+  group.add(platformSouth);
+
+  for (const x of [-42, 42]) {
+    const concourse = new Mesh(new BoxGeometry(16, 1.8, 5), glass);
+    concourse.name = "Tokyo station glass concourse light";
+    concourse.position.set(x, 4.2, -look.ground.horizontalRoadWidth * 0.95);
+    group.add(concourse);
+  }
+}
+
+function addRoppongiTower(group: Group, colliders: Box3[]): void {
+  const towerMaterial = new MeshBasicMaterial({
+    color: "#6fb7ff",
+    transparent: true,
+    opacity: 0.34,
+    toneMapped: false,
+  });
+  const crownMaterial = new MeshBasicMaterial({
+    color: "#b895ff",
+    transparent: true,
+    opacity: 0.86,
+    toneMapped: false,
+  });
+  const tower = new Mesh(new BoxGeometry(11, 82, 11), towerMaterial);
+  tower.name = "Roppongi glass tower silhouette";
+  tower.position.set(46, 41, -48);
+  group.add(tower);
+
+  const crown = new Mesh(new BoxGeometry(14, 1.2, 14), crownMaterial);
+  crown.name = "Roppongi tower violet crown";
+  crown.position.set(46, 82.8, -48);
+  group.add(crown);
+
+  colliders.push(new Box3(new Vector3(40.5, 0, -53.5), new Vector3(51.5, 82, -42.5)));
+}
+
+function addTokyoTowerArea(group: Group, colliders: Box3[]): void {
+  const towerRed = new MeshBasicMaterial({
+    color: "#ff4d2e",
+    transparent: true,
+    opacity: 0.92,
+    toneMapped: false,
+  });
+  const towerWhite = new MeshBasicMaterial({
+    color: "#fff4df",
+    transparent: true,
+    opacity: 0.86,
+    toneMapped: false,
+  });
+  const warmLight = new MeshBasicMaterial({
+    color: "#ffb05c",
+    transparent: true,
+    opacity: 0.48,
+    toneMapped: false,
+  });
+
+  const tower = new Group();
+  tower.name = "Tokyo Tower landmark";
+  tower.position.set(-44, 0, -58);
+
+  const core = new Mesh(new CylinderGeometry(1.8, 4.8, 74, 4), towerRed);
+  core.name = "Tokyo Tower red lattice core";
+  core.position.y = 37;
+  core.rotation.y = Math.PI / 4;
+  tower.add(core);
+
+  for (const y of [18, 38, 58]) {
+    const deck = new Mesh(new BoxGeometry(18 - y * 0.18, 1.2, 18 - y * 0.18), y === 38 ? towerWhite : towerRed);
+    deck.name = "Tokyo Tower observation deck band";
+    deck.position.y = y;
+    tower.add(deck);
+  }
+
+  const antenna = new Mesh(new CylinderGeometry(0.3, 0.7, 28, 8), towerWhite);
+  antenna.name = "Tokyo Tower antenna";
+  antenna.position.y = 88;
+  tower.add(antenna);
+
+  const beacon = new Mesh(new ConeGeometry(3.8, 7, 8), warmLight);
+  beacon.name = "Tokyo Tower warm beacon";
+  beacon.position.y = 104;
+  tower.add(beacon);
+
+  for (const x of [-9, 9]) {
+    for (const z of [-9, 9]) {
+      const leg = new Mesh(new BoxGeometry(1.2, 32, 1.2), towerRed);
+      leg.name = "Tokyo Tower angled support";
+      leg.position.set(x, 16, z);
+      leg.rotation.z = x > 0 ? -0.16 : 0.16;
+      leg.rotation.x = z > 0 ? 0.16 : -0.16;
+      tower.add(leg);
+    }
+  }
+
+  group.add(tower);
+  colliders.push(new Box3(new Vector3(-54, 0, -68), new Vector3(-34, 74, -48)));
+}
+
+function addKyotoLandmarks(group: Group, look: CityLook, colliders: Box3[]): void {
+  const vermilion = new MeshBasicMaterial({
+    color: "#d63b24",
+    transparent: true,
+    opacity: 0.88,
+    toneMapped: false,
+  });
+  const lantern = new MeshBasicMaterial({
+    color: "#ffb457",
+    transparent: true,
+    opacity: 0.78,
+    toneMapped: false,
+  });
+  const roof = new MeshBasicMaterial({
+    color: "#18120c",
+    transparent: true,
+    opacity: 0.9,
+  });
+
+  for (let index = 0; index < 7; index += 1) {
+    const z = -58 + index * 6.5;
+    const torii = new Group();
+    torii.name = "Kyoto torii gate";
+    torii.position.set(-28, 0, z);
+
+    const leftPost = new Mesh(new BoxGeometry(0.9, 7, 0.9), vermilion);
+    leftPost.position.set(-3, 3.5, 0);
+    const rightPost = leftPost.clone();
+    rightPost.position.x = 3;
+    const topBeam = new Mesh(new BoxGeometry(8.6, 0.7, 1.2), vermilion);
+    topBeam.position.y = 7.1;
+    const lowerBeam = new Mesh(new BoxGeometry(6.8, 0.45, 1), vermilion);
+    lowerBeam.position.y = 5.9;
+
+    torii.add(leftPost, rightPost, topBeam, lowerBeam);
+    group.add(torii);
+  }
+
+  const templeBase = new Mesh(new BoxGeometry(22, 5, 12), roof);
+  templeBase.name = "Kyoto low temple silhouette";
+  templeBase.position.set(38, 2.5, -46);
+  group.add(templeBase);
+
+  const templeRoof = new Mesh(new ConeGeometry(15, 7, 4), roof);
+  templeRoof.name = "Kyoto temple roof";
+  templeRoof.position.set(38, 9, -46);
+  templeRoof.rotation.y = Math.PI / 4;
+  group.add(templeRoof);
+
+  for (const x of [-look.ground.verticalRoadWidth * 0.62, look.ground.verticalRoadWidth * 0.62]) {
+    for (let z = -72; z <= 72; z += 24) {
+      const lamp = new Mesh(new BoxGeometry(1.2, 2.2, 1.2), lantern);
+      lamp.name = "Kyoto lantern glow";
+      lamp.position.set(x, 2.2, z);
+      group.add(lamp);
+    }
+  }
+
+  colliders.push(new Box3(new Vector3(27, 0, -52), new Vector3(49, 8, -40)));
 }
 
 function addSkyline(group: Group, look: CityLook, materials: CityMaterials): void {

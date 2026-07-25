@@ -45,6 +45,25 @@ The whole visual quality bet is **night Shibuya**: neon, wet asphalt, fog, heavy
 
 `src/city/look.ts` is the contract: every visual number lives there, the gui panel binds to it, and the rest of the code reads it. Nobody else writes that file.
 
+### Jun — add districts without breaking main
+
+Add more Tokyo districts from inside Jun's lane only. **Do not edit or break `src/main.ts`.** The existing call shape in main must keep working:
+
+```ts
+const city = createShibuyaCity(scene, {})
+```
+
+Implementation direction:
+
+1. Keep Shibuya as the default city so the current demo flow still works.
+2. Add district presets under `src/city/**` for at least **Tokyo**, **Roppongi**, **Tokyo Tower**, and **Kyoto**.
+3. The new district logic must preserve the same public contract: `city.colliders`, `city.applyLook(...)`, `city.update(...)`, and `city.dispose()`.
+4. If district switching is added, do it without requiring a `src/main.ts` change. For example, read `?district=roppongi` inside `src/city/**`, while defaulting to Shibuya when the parameter is absent.
+5. Roppongi should feel visually different from Shibuya: taller glass towers, fewer stacked signs, richer club / gallery lighting, and a more upscale night palette.
+6. Tokyo district should feel broader and more central: bigger roads, office towers, station-like lighting, and denser skyline silhouettes.
+7. Tokyo Tower district should include a recognizable red/orange tower landmark, darker park-adjacent roads, and warm tourist-area lighting.
+8. Kyoto should contrast with Tokyo: lower buildings, warmer lantern lighting, fewer neon signs, temple / torii silhouettes, and narrower wet streets.
+
 ### Jun's queue — post-merge, measured in the running game
 
 `jun-city-look` was merged into `main` at `878a18e`. Your `city.ts`, `look.ts`, `textures.ts`, and `gui.ts` won every conflict; the scaffold's `render/stage.ts` was deleted because your `lighting.ts` + `pipeline.ts` replace it. Gameplay code was adapted to your API, not the other way round.
