@@ -12,6 +12,7 @@ export class Run {
   readonly marker: THREE.Group
   state: RunState = 'idle'
   timeLeft = RUN_SECONDS
+  parcelStolen = false
   readonly dropPoint = new THREE.Vector3()
   private surgeFired = false
 
@@ -47,7 +48,13 @@ export class Run {
     this.state = 'running'
     this.timeLeft = RUN_SECONDS
     this.surgeFired = false
+    this.parcelStolen = false
     this.pickDropPoint(playerPos)
+  }
+
+  /** Encounters bleed time off the clock; the lost-path fires next frame if it hits 0. */
+  applyTimePenalty(seconds: number): void {
+    this.timeLeft = Math.max(0, this.timeLeft - seconds)
   }
 
   update(dt: number, playerPos: THREE.Vector3): RunEvent | null {
@@ -65,7 +72,7 @@ export class Run {
 
     const dx = playerPos.x - this.dropPoint.x
     const dz = playerPos.z - this.dropPoint.z
-    if (dx * dx + dz * dz < ARRIVE_RADIUS * ARRIVE_RADIUS) {
+    if (!this.parcelStolen && dx * dx + dz * dz < ARRIVE_RADIUS * ARRIVE_RADIUS) {
       this.state = 'won'
       return 'won'
     }

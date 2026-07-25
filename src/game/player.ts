@@ -12,14 +12,17 @@ export class Player {
   readonly position = new THREE.Vector3(0, 0, 26)
   readonly mesh: THREE.Group
   yaw = 0
+  frozen = false
   private pitch = -0.05
   private readonly velocity = new THREE.Vector3()
   private readonly keys = new Set<string>()
   private readonly camPos = new THREE.Vector3()
   private readonly camTarget = new THREE.Vector3()
+  private readonly parcel: THREE.Mesh
   private staggerT = 0
   private buffMul = 1
   private buffT = 0
+  private punchT = 0
 
   constructor() {
     this.mesh = new THREE.Group()
@@ -37,8 +40,12 @@ export class Player {
     )
     parcel.position.set(0, 1.4, -0.28)
     this.mesh.add(parcel)
+    this.parcel = parcel
 
-    addEventListener('keydown', (e) => this.keys.add(e.code))
+    addEventListener('keydown', (e) => {
+      this.keys.add(e.code)
+      if (e.code === 'KeyF') this.punchT = 0.25
+    })
     addEventListener('keyup', (e) => this.keys.delete(e.code))
     addEventListener('mousemove', (e) => {
       if (document.pointerLockElement === null) return
@@ -49,6 +56,15 @@ export class Player {
 
   get sprinting(): boolean {
     return this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')
+  }
+
+  get isPunching(): boolean {
+    return this.punchT > 0
+  }
+
+  /** Hide the pink parcel box while it's in a thief's hands. */
+  setParcelHeld(held: boolean): void {
+    this.parcel.visible = held
   }
 
   /** A drunkard's bump knocks the courier woozy for a few seconds. */
@@ -67,11 +83,15 @@ export class Player {
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw))
     const right = new THREE.Vector3(forward.z, 0, -forward.x)
 
+    this.punchT = Math.max(0, this.punchT - dt)
+
     const wish = new THREE.Vector3()
-    if (this.keys.has('KeyW')) wish.add(forward)
-    if (this.keys.has('KeyS')) wish.sub(forward)
-    if (this.keys.has('KeyD')) wish.add(right)
-    if (this.keys.has('KeyA')) wish.sub(right)
+    if (!this.frozen) {
+      if (this.keys.has('KeyW')) wish.add(forward)
+      if (this.keys.has('KeyS')) wish.sub(forward)
+      if (this.keys.has('KeyD')) wish.add(right)
+      if (this.keys.has('KeyA')) wish.sub(right)
+    }
 
     this.staggerT = Math.max(0, this.staggerT - dt)
     const staggered = this.staggerT > 0

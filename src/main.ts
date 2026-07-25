@@ -5,6 +5,7 @@ import { createCityLighting, createRenderPipeline } from './render'
 import { feeds, isRaining, type Rail, type Weather } from './data/feeds'
 import { audio } from './audio/audio'
 import { Crowd, SQUARE } from './game/crowd'
+import { Encounters } from './game/encounters'
 import { Pickups } from './game/pickups'
 import { Player } from './game/player'
 import { Run } from './game/run'
@@ -44,6 +45,9 @@ scene.add(crowd.mesh, crowd.umbrellas)
 
 const pickups = new Pickups()
 scene.add(pickups.group)
+
+const encounters = new Encounters()
+scene.add(encounters.group)
 
 const signals = new TrafficSignals()
 scene.add(signals.group)
@@ -140,6 +144,7 @@ function frame(): void {
     player.stagger(0.5)
     audio.sfx('beer')
   }
+  encounters.update(dt, player, run, onRed)
   signals.update(crowd.signal)
   city.update(dt, elapsed)
 

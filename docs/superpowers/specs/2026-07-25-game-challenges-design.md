@@ -26,7 +26,7 @@ each an atomic commit that builds green (`bun run typecheck`) before push.
   → `speedMul 1.35 / 6s`, `beer` → `speedMul 0.6 / 5s`, respawn cooldown. `player.ts`:
   `buff(mul, s)` + `speedMul` in the speed line. `city.ts`: FamilyMart + 7-Eleven meshes
   with `createSignTexture` neon near the crossing. `main.ts`: wire + sfx.
-- [ ] **T3 — Encounters + melee.** new `src/game/encounters.ts`: pickpocket (homes,
+- [x] **T3 — Encounters + melee.** new `src/game/encounters.ts`: pickpocket (homes,
   steals parcel on contact → chase/punch to recover, else `applyTimePenalty(15)` +
   parcel returns), cop ID-check (sprint-near/red-cross → `player.frozen` N s; timer
   keeps ticking = the cost; line from ai&). `player.ts`: `frozen`, `punching`, parcel
