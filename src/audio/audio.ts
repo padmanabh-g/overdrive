@@ -23,6 +23,7 @@ class Audio {
   private ctx?: AudioContext
   private master?: GainNode
   private music?: HTMLAudioElement
+  private cues: Record<string, HTMLAudioElement> = {}
   private muted = false
 
   constructor() {
@@ -41,6 +42,19 @@ class Audio {
       this.music = el
     }
     void this.music.play().catch(() => {})
+  }
+
+  /** One-shot sample from a url, reusing one element per url. Restarts on each call. */
+  cue(url: string): void {
+    if (this.muted) return
+    let el = this.cues[url]
+    if (!el) {
+      el = new self.Audio(url)
+      el.volume = 0.5
+      this.cues[url] = el
+    }
+    el.currentTime = 0
+    void el.play().catch(() => {})
   }
 
   toggleMute(): void {
