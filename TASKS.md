@@ -20,7 +20,8 @@ Merge conflicts are the only thing that can actually kill us. The boundary is by
 | `src/render/**` | **Jun** | Lighting, fog, tone mapping, bloom/SSAO passes |
 | `src/ui/gui.ts` | **Jun** | The lil-gui art panel bindings |
 | `src/game/**` | Padmanabh + Claude | Player, camera, crowd, steering, objective, timer, surge event |
-| `src/data/**` | Padmanabh + Claude | Live feeds (weather, rail), fixtures, adapters |
+| `src/data/**` | Padmanabh + Claude | Client-side feed access, fixtures, adapters |
+| `server/**` | Padmanabh + Claude | Fastify: API keys, ai& + Daytona calls, feed proxy |
 | `src/ui/hud.ts` | Padmanabh + Claude | Timer, objective, condition readout |
 | `src/main.ts` | Padmanabh + Claude | Wiring and the frame loop |
 | `index.html`, configs | Padmanabh + Claude | Scaffold |
@@ -82,7 +83,7 @@ Judging criterion 4 is **sponsored product usage, checked at code level**. We ar
 
 ### Blocked on credentials
 
-A browser cannot hold API keys, so both calls go through Vite dev-server middleware (two endpoints, no second process to run during the demo).
+A browser cannot hold API keys, so both calls go through the **Fastify backend** in `server/`. Vite proxies `/api/*` to it, which avoids CORS entirely. `bun dev` starts the server and the client together as one command.
 
 Needed from the sponsor workshop before this can be wired:
 

@@ -1,0 +1,24 @@
+{
+  "name": "overdrive-tokyo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n server,client -c cyan,magenta \"bun --hot server/index.ts\" \"vite\"",
+    "dev:client": "vite",
+    "dev:server": "bun --hot server/index.ts",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "fastify": "^5.2.0",
+    "lil-gui": "^0.20.0",
+    "postprocessing": "^6.36.4",
+    "three": "^0.171.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.171.0",
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  }
+}
