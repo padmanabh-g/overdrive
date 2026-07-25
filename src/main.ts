@@ -158,7 +158,13 @@ function frame(): void {
     crowd.surge(run.dropPoint.clone().lerp(player.position, 0.5), 520)
     audio.sfx('surge')
     void feeds.narrate('surge', weather).then(({ line }) => showNarration(line))
+  } else if (event === 'delivered') {
+    player.setParcelHeld(false)
+    audio.sfx('win')
+    showNarration(`配達 ${run.delivered}/${run.total} — Next drop incoming. +30s.`)
+    player.setParcelHeld(true)
   } else if (event === 'won') {
+    player.setParcelHeld(false)
     audio.sfx('win')
     showNarration('配達完了 — Parcel delivered. Press R to run again.')
     document.exitPointerLock()

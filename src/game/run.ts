@@ -5,7 +5,7 @@ const RUN_SECONDS = 150
 const SURGE_AT = 100
 const ARRIVE_RADIUS = 3.2
 
-export type RunEvent = 'surge' | 'won' | 'lost'
+export type RunEvent = 'surge' | 'delivered' | 'won' | 'lost'
 export type RunState = 'idle' | 'running' | 'won' | 'lost'
 
 export class Run {
@@ -13,6 +13,8 @@ export class Run {
   state: RunState = 'idle'
   timeLeft = RUN_SECONDS
   parcelStolen = false
+  readonly total = 3
+  delivered = 0
   readonly dropPoint = new THREE.Vector3()
   private surgeFired = false
 
@@ -49,6 +51,7 @@ export class Run {
     this.timeLeft = RUN_SECONDS
     this.surgeFired = false
     this.parcelStolen = false
+    this.delivered = 0
     this.pickDropPoint(playerPos)
   }
 
@@ -73,6 +76,13 @@ export class Run {
     const dx = playerPos.x - this.dropPoint.x
     const dz = playerPos.z - this.dropPoint.z
     if (!this.parcelStolen && dx * dx + dz * dz < ARRIVE_RADIUS * ARRIVE_RADIUS) {
+      if (this.delivered < this.total - 1) {
+        this.delivered++
+        this.timeLeft += 30
+        this.pickDropPoint(playerPos)
+        return 'delivered'
+      }
+      this.delivered++
       this.state = 'won'
       return 'won'
     }
