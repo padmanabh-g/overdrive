@@ -3,6 +3,7 @@ import { createShibuyaCity } from './city'
 import { cityLook } from './city/look'
 import { createCityLighting, createRenderPipeline } from './render'
 import { feeds, isRaining, type Rail, type Weather } from './data/feeds'
+import { audio } from './audio/audio'
 import { Crowd } from './game/crowd'
 import { Player } from './game/player'
 import { Run } from './game/run'
@@ -95,6 +96,7 @@ const startOverlay = document.getElementById('start')!
 function beginRun(): void {
   startOverlay.classList.add('hide')
   renderer.domElement.requestPointerLock()
+  audio.startMusic()
   run.start(player.position)
 }
 
@@ -128,11 +130,14 @@ function frame(): void {
   const event = run.update(dt, player.position)
   if (event === 'surge') {
     crowd.surge(run.dropPoint.clone().lerp(player.position, 0.5), 520)
+    audio.sfx('surge')
     void feeds.narrate('surge', weather).then(({ line }) => showNarration(line))
   } else if (event === 'won') {
+    audio.sfx('win')
     showNarration('配達完了 — Parcel delivered. Press R to run again.')
     document.exitPointerLock()
   } else if (event === 'lost') {
+    audio.sfx('lose')
     showNarration('時間切れ — The city won this one. Press R to try again.')
     document.exitPointerLock()
   }
