@@ -60,13 +60,14 @@ export const feeds = {
       lines: [{ name: 'Yamanote', status: 'normal' }],
     }),
 
-  // ai& — the City Director.
-  narrate: (condition: string) =>
-    post<Narration>('/api/city-director', { condition }, {
-      source: 'offline',
-      live: false,
-      line: '',
-    }),
+  // ai& — the City Director. Real conditions go with the request so the model is
+  // reacting to live Tokyo, not inventing weather.
+  narrate: (condition: string, w?: Weather) =>
+    post<Narration>(
+      '/api/city-director',
+      { condition, tempC: w?.tempC, precipMm: w?.precipMm, windKph: w?.windKph },
+      { source: 'offline', live: false, line: '' },
+    ),
 
   // Daytona — the Probe sandbox.
   probeDensity: () =>

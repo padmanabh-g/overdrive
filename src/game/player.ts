@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import type { Box2 } from '../city/city'
 
 const RADIUS = 0.85
 const WALK = 9.5
@@ -50,7 +49,7 @@ export class Player {
   }
 
   /** `drag` is 0..1 crowd resistance — dense crowds make the courier wade. */
-  update(dt: number, colliders: Box2[], extent: number, drag: number): void {
+  update(dt: number, colliders: THREE.Box3[], bounds: { x: number; z: number }, drag: number): void {
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw))
     const right = new THREE.Vector3(forward.z, 0, -forward.x)
 
@@ -68,9 +67,8 @@ export class Player {
 
     this.resolveCollisions(colliders)
 
-    const limit = extent + 20
-    this.position.x = THREE.MathUtils.clamp(this.position.x, -limit, limit)
-    this.position.z = THREE.MathUtils.clamp(this.position.z, -limit, limit)
+    this.position.x = THREE.MathUtils.clamp(this.position.x, -bounds.x, bounds.x)
+    this.position.z = THREE.MathUtils.clamp(this.position.z, -bounds.z, bounds.z)
 
     this.mesh.position.copy(this.position)
     if (this.velocity.lengthSq() > 0.4) {
@@ -92,10 +90,10 @@ export class Player {
     camera.lookAt(this.camTarget)
   }
 
-  private resolveCollisions(colliders: Box2[]): void {
+  private resolveCollisions(colliders: THREE.Box3[]): void {
     for (const b of colliders) {
-      const cx = THREE.MathUtils.clamp(this.position.x, b.minX, b.maxX)
-      const cz = THREE.MathUtils.clamp(this.position.z, b.minZ, b.maxZ)
+      const cx = THREE.MathUtils.clamp(this.position.x, b.min.x, b.max.x)
+      const cz = THREE.MathUtils.clamp(this.position.z, b.min.z, b.max.z)
       const dx = this.position.x - cx
       const dz = this.position.z - cz
       const distSq = dx * dx + dz * dz
@@ -109,15 +107,15 @@ export class Player {
         this.position.z += dz * push
       } else {
         // Centre penetration: eject along the shallowest axis.
-        const toLeft = this.position.x - b.minX
-        const toRight = b.maxX - this.position.x
-        const toBack = this.position.z - b.minZ
-        const toFront = b.maxZ - this.position.z
+        const toLeft = this.position.x - b.min.x
+        const toRight = b.max.x - this.position.x
+        const toBack = this.position.z - b.min.z
+        const toFront = b.max.z - this.position.z
         const min = Math.min(toLeft, toRight, toBack, toFront)
-        if (min === toLeft) this.position.x = b.minX - RADIUS
-        else if (min === toRight) this.position.x = b.maxX + RADIUS
-        else if (min === toBack) this.position.z = b.minZ - RADIUS
-        else this.position.z = b.maxZ + RADIUS
+        if (min === toLeft) this.position.x = b.min.x - RADIUS
+        else if (min === toRight) this.position.x = b.max.x + RADIUS
+        else if (min === toBack) this.position.z = b.min.z - RADIUS
+        else this.position.z = b.max.z + RADIUS
       }
     }
   }

@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { farthestDrop, type Streets } from './streets'
 
 const RUN_SECONDS = 150
 const SURGE_AT = 100
@@ -14,7 +15,7 @@ export class Run {
   readonly dropPoint = new THREE.Vector3()
   private surgeFired = false
 
-  constructor(private readonly streetLines: number[]) {
+  constructor(private readonly streets: Streets) {
     this.marker = new THREE.Group()
 
     const beam = new THREE.Mesh(
@@ -78,31 +79,14 @@ export class Run {
     return null
   }
 
-  get distance(): number {
-    return this.dropPoint.length()
-  }
-
   distanceFrom(pos: THREE.Vector3): number {
     return Math.hypot(pos.x - this.dropPoint.x, pos.z - this.dropPoint.z)
   }
 
-  /** Far enough that the run is a real trip, and always on a street intersection. */
+  /** Always the far end of a walkable corridor, so the run is a real trip. */
   private pickDropPoint(from: THREE.Vector3): void {
-    let best = new THREE.Vector3()
-    let bestDist = -1
-
-    for (let attempt = 0; attempt < 40; attempt++) {
-      const x = this.streetLines[Math.floor(Math.random() * this.streetLines.length)] ?? 0
-      const z = this.streetLines[Math.floor(Math.random() * this.streetLines.length)] ?? 0
-      const dist = Math.hypot(x - from.x, z - from.z)
-      if (dist > bestDist) {
-        bestDist = dist
-        best = new THREE.Vector3(x, 0, z)
-      }
-      if (bestDist > 150) break
-    }
-
-    this.dropPoint.copy(best)
-    this.marker.position.copy(best)
+    const { x, z } = farthestDrop(this.streets, from)
+    this.dropPoint.set(x, 0, z)
+    this.marker.position.copy(this.dropPoint)
   }
 }

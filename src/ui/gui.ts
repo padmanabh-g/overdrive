@@ -1,45 +1,68 @@
-import GUI from 'lil-gui'
-import * as THREE from 'three'
-import { look } from '../city/look'
-import type { Stage } from '../render/stage'
+import GUI from "lil-gui";
 
-/**
- * Jun's art panel. Everything bound here applies live; geometry-driven values
- * (building heights, sign density) need a reload, so they are not bound.
- * Tune, then commit the numbers into src/city/look.ts.
- */
-export function createArtPanel(stage: Stage): GUI {
-  const gui = new GUI({ title: 'Look — Jun' })
-  gui.close()
+import { cityLook, type CityLook } from "../city/look";
+import type { ShibuyaCity } from "../city";
+import type { CityLighting, RenderPipeline } from "../render";
 
-  const fog = stage.scene.fog as THREE.FogExp2
+export type ArtGuiTargets = {
+  city?: ShibuyaCity;
+  lighting?: CityLighting;
+  pipeline?: RenderPipeline;
+};
 
-  const atmosphere = gui.addFolder('Atmosphere')
-  atmosphere.addColor(look, 'fogColor').onChange((v: number) => fog.color.set(v))
-  atmosphere.add(look, 'fogDensity', 0, 0.05, 0.0005).onChange((v: number) => (fog.density = v))
-  atmosphere.add(look, 'exposure', 0.2, 3, 0.01).onChange((v: number) => (stage.renderer.toneMappingExposure = v))
+export function bindArtGui(look: CityLook = cityLook, targets: ArtGuiTargets = {}): GUI {
+  const gui = new GUI({ title: "Jun look" });
 
-  const bloom = gui.addFolder('Bloom')
-  bloom.add(look, 'bloomIntensity', 0, 5, 0.05).onChange((v: number) => (stage.bloom.intensity = v))
-  bloom
-    .add(look, 'bloomThreshold', 0, 1, 0.01)
-    .onChange((v: number) => (stage.bloom.luminanceMaterial.threshold = v))
-  bloom
-    .add(look, 'bloomSmoothing', 0, 1, 0.01)
-    .onChange((v: number) => (stage.bloom.luminanceMaterial.smoothing = v))
+  const apply = () => {
+    targets.city?.applyLook(look);
+    targets.lighting?.applyLook(look);
+    targets.pipeline?.applyLook(look);
+  };
 
-  const env = gui.addFolder('Environment')
-  env.add(stage.scene, 'environmentIntensity', 0, 1, 0.01).name('reflection strength')
+  const fog = gui.addFolder("Fog");
+  fog.addColor(look.fog, "color").onChange(apply);
+  fog.add(look.fog, "density", 0, 0.06, 0.001).onChange(apply);
 
-  gui.add({ copy: () => copyLook() }, 'copy').name('Copy values to clipboard')
+  const tone = gui.addFolder("Tone");
+  tone.add(look.toneMapping, "exposure", 0.5, 2.2, 0.01).onChange(apply);
 
-  return gui
-}
+  const bloom = gui.addFolder("Bloom");
+  bloom.add(look.bloom, "intensity", 0, 3, 0.01).onChange(apply);
+  bloom.add(look.bloom, "luminanceThreshold", 0, 2, 0.01).onChange(apply);
+  bloom.add(look.bloom, "luminanceSmoothing", 0, 1, 0.01).onChange(apply);
 
-function copyLook(): void {
-  const json = JSON.stringify(look, null, 2)
-  navigator.clipboard?.writeText(json).then(
-    () => console.log('[look] copied — paste the changed values into src/city/look.ts'),
-    () => console.log(json),
-  )
+  const ssao = gui.addFolder("SSAO");
+  ssao.add(look.ssao, "intensity", 0, 2, 0.01).onChange(apply);
+  ssao.add(look.ssao, "radius", 0, 24, 0.1).onChange(apply);
+  ssao.add(look.ssao, "resolutionScale", 0.25, 1, 0.01).onChange(apply);
+
+  const lighting = gui.addFolder("Lighting");
+  lighting.addColor(look.lighting, "ambientColor").onChange(apply);
+  lighting.add(look.lighting, "ambientIntensity", 0, 2, 0.01).onChange(apply);
+  lighting.addColor(look.lighting, "hemiSkyColor").onChange(apply);
+  lighting.addColor(look.lighting, "hemiGroundColor").onChange(apply);
+  lighting.add(look.lighting, "hemiIntensity", 0, 2, 0.01).onChange(apply);
+  lighting.addColor(look.lighting, "keyColor").onChange(apply);
+  lighting.add(look.lighting, "keyIntensity", 0, 4, 0.01).onChange(apply);
+
+  const surfaces = gui.addFolder("Wet surfaces");
+  surfaces.addColor(look.ground, "asphaltColor").onChange(apply);
+  surfaces.addColor(look.ground, "roadColor").onChange(apply);
+  surfaces.add(look.ground, "roughness", 0.02, 0.8, 0.01).onChange(apply);
+  surfaces.add(look.ground, "metalness", 0, 1, 0.01).onChange(apply);
+  surfaces.add(look.ground, "reflectionOpacity", 0, 0.75, 0.01).onChange(apply);
+
+  const windows = gui.addFolder("Windows");
+  windows.addColor(look.buildings, "baseColor").onChange(apply);
+  windows.addColor(look.buildings, "windowEmissive").onChange(apply);
+  windows.add(look.buildings, "windowIntensity", 0, 4, 0.01).onChange(apply);
+
+  const rain = gui.addFolder("Rain");
+  rain.add(look.rain, "enabled").onChange(apply);
+  rain.addColor(look.rain, "color").onChange(apply);
+  rain.add(look.rain, "opacity", 0, 0.9, 0.01).onChange(apply);
+  rain.add(look.rain, "speed", 0, 60, 0.5).onChange(apply);
+
+  apply();
+  return gui;
 }
