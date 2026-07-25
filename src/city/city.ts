@@ -21,6 +21,11 @@ import {
 import { cityLook, cityLooks, cloneCityLook, type CityLook, type DistrictId } from "./look";
 import { applyLookToMaterials, createCityMaterials, type CityMaterials } from "./materials";
 import { createSeededRandom, pick } from "./random";
+import {
+  createCrowdEscapeCombatSubmode,
+  shouldEnableCrowdEscapeCombatSubmode,
+  type CrowdEscapeCombatSubmode,
+} from "./submodes/crowdEscapeCombat";
 import { createCrosswalkTexture, createSignTexture, createWindowTexture } from "./textures";
 
 export type ShibuyaCityOptions = {
@@ -36,6 +41,7 @@ export type ShibuyaCity = {
   applyLook: (nextLook?: CityLook) => void;
   update: (deltaSeconds: number, elapsedSeconds: number) => void;
   dispose: () => void;
+  crowdEscapeCombat?: CrowdEscapeCombatSubmode;
 };
 
 const UP = new Vector3(0, 1, 0);
@@ -52,12 +58,18 @@ export function createShibuyaCity(scene: Scene, options: ShibuyaCityOptions = {}
   const colliders: Box3[] = [];
   const animatedSigns: Array<Mesh<PlaneGeometry, MeshBasicMaterial>> = [];
   const rain = createRain(look, materials);
+  const crowdEscapeCombat = shouldEnableCrowdEscapeCombatSubmode()
+    ? createCrowdEscapeCombatSubmode(look)
+    : undefined;
 
   addGround(group, look, materials);
   addRoads(group, look, materials);
   addDistrictLandmarks(group, look, colliders);
   addBuildings(group, look, materials, random, colliders, animatedSigns);
   addSkyline(group, look, materials);
+  if (crowdEscapeCombat) {
+    group.add(crowdEscapeCombat.group);
+  }
   group.add(rain);
 
   scene.add(group);
@@ -71,6 +83,7 @@ export function createShibuyaCity(scene: Scene, options: ShibuyaCityOptions = {}
       rain.visible = nextLook.rain.enabled;
     },
     update(deltaSeconds, elapsedSeconds) {
+      crowdEscapeCombat?.update(deltaSeconds, elapsedSeconds);
       rain.position.y -= nextLookValue(look.rain.speed, deltaSeconds);
       if (rain.position.y < -look.rain.height * 0.5) {
         rain.position.y += look.rain.height;
@@ -93,9 +106,11 @@ export function createShibuyaCity(scene: Scene, options: ShibuyaCityOptions = {}
           material?.dispose();
         }
       });
+      crowdEscapeCombat?.dispose();
       windowTexture.dispose();
       crosswalkTexture.dispose();
     },
+    crowdEscapeCombat,
   };
 }
 

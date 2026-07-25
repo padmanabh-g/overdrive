@@ -64,6 +64,29 @@ Implementation direction:
 7. Tokyo Tower district should include a recognizable red/orange tower landmark, darker park-adjacent roads, and warm tourist-area lighting.
 8. Kyoto should contrast with Tokyo: lower buildings, warmer lantern lighting, fewer neon signs, temple / torii silhouettes, and narrower wet streets.
 
+### Jun — sub mode: Crowd Escape Combat
+
+Build this as an optional sub mode only. **Do not edit `src/main.ts` at all. Do not replace the courier run.** The main delivery game remains the default and must keep working unchanged.
+
+Concept:
+
+Crowd Escape Combat stays close to the current delivery game. This is **not** a full enemy-killing battle mode. The combat verb is escape: the player triggers a short shockwave to push back crowd pressure, hostile blockers, and crowd surge walls, opening a route to the destination.
+
+Player fantasy:
+
+You are still a courier trying to reach the drop point, but when the city crushes the route shut, you can blast a neon shockwave through the crowd to make a temporary path.
+
+Implementation direction:
+
+1. Put the work in new Jun-owned sub files, for example under `src/city/submodes/**` or another `src/city/**` path. If this needs broader ownership later, ask first rather than editing `src/main.ts`.
+2. Expose a small opt-in API that main could call later, but do not require main to call it now. Example shape: `createCrowdEscapeCombatSubmode(...)`.
+3. Reuse the existing three.js city, district presets, wet roads, neon reflections, rain, and crowd/surge visual language. Do not delete or rewrite the current 3D city.
+4. Add visual-only combat affordances first: shockwave ring, neon pulse, road reflection flare, and blocker warning markers.
+5. Keep gameplay assumptions modest: one button later can emit a radial push / stun effect against enemies or surge blockers, but the first pass can be a self-contained visual module.
+6. District flavour should carry through: Shibuya neon pulse, Roppongi club-light burst, Tokyo Tower red beacon wave, Kyoto lantern / torii glow.
+7. The default URL with no mode parameter must still be the normal courier run.
+8. If a URL switch is added later, prefer `?sub=crowd-combat` or `?mode=crowd-combat`, but only from inside the sub module unless main ownership is explicitly opened.
+
 ### Jun's queue — post-merge, measured in the running game
 
 `jun-city-look` was merged into `main` at `878a18e`. Your `city.ts`, `look.ts`, `textures.ts`, and `gui.ts` won every conflict; the scaffold's `render/stage.ts` was deleted because your `lighting.ts` + `pipeline.ts` replace it. Gameplay code was adapted to your API, not the other way round.
