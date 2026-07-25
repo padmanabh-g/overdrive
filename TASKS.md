@@ -1,10 +1,12 @@
 # Overdrive Tokyo — Team Split
 
-**Submission: 16:00 JST. Demo is 3 minutes, live, run locally via `bun dev`.**
+**Submission: 16:00 JST. Demo is 3 minutes, from the deployed Vercel URL.**
 
 Two devs: **Padmanabh** (gameplay + data, pairing with Claude Code) and **Jun** (city art + look).
 
-Stack is locked: Vite + TypeScript + three.js, `postprocessing` for bloom/SSAO, `lil-gui` for live art tuning. Browser, WebGL2, fully 3D. No Unreal, no Godot, no deploy step.
+Stack is locked: Vite + TypeScript + three.js, `postprocessing` for bloom/SSAO, `lil-gui` for live art tuning. Browser, WebGL2, fully 3D. No Unreal, no Godot.
+
+**Deploys are automatic: every push to `main` ships to Vercel.** That means `main` is the demo. A broken push is a broken demo, so run `bun run typecheck` before pushing — `build` deliberately does not typecheck, so that a strict-mode error can never fail a deploy.
 
 The game: **a night courier run through Shibuya.** You carry a parcel to a drop point against a timer. The live city fights you — rain slicks the ground, crowd density slows you, and mid-run a concert lets out and a crowd surge blocks the direct route, which you have to escape and reroute around.
 
@@ -21,7 +23,8 @@ Merge conflicts are the only thing that can actually kill us. The boundary is by
 | `src/ui/gui.ts` | **Jun** | The lil-gui art panel bindings |
 | `src/game/**` | Padmanabh + Claude | Player, camera, crowd, steering, objective, timer, surge event |
 | `src/data/**` | Padmanabh + Claude | Client-side feed access, fixtures, adapters |
-| `server/**` | Padmanabh + Claude | Fastify: API keys, ai& + Daytona calls, feed proxy |
+| `server/**` | Padmanabh + Claude | Route logic + local Fastify dev server |
+| `api/**` | Padmanabh + Claude | Vercel Functions — the same logic in production |
 | `src/ui/hud.ts` | Padmanabh + Claude | Timer, objective, condition readout |
 | `src/main.ts` | Padmanabh + Claude | Wiring and the frame loop |
 | `index.html`, configs | Padmanabh + Claude | Scaffold |
@@ -42,6 +45,13 @@ The whole visual quality bet is **night Shibuya**: neon, wet asphalt, fog, heavy
 
 `src/city/look.ts` is the contract: every visual number lives there, the gui panel binds to it, and the rest of the code reads it. Nobody else writes that file.
 
+### Handed to Jun — initial versions exist, both open
+
+Claude wrote the first pass of `src/city/**`, `src/render/stage.ts`, and `src/ui/gui.ts` so the scaffold could run. They are yours from here; nobody else edits them.
+
+1. **The scene is too dark.** Values only, in `look.ts`: `exposure` 1.15→~1.35, `fogDensity` 0.011→~0.006, `ambientIntensity` 0.55→~0.8, `streetLightIntensity` 12→~28, `neonIntensity` 2.6→~3.4. Tune in the panel, then commit.
+2. **`glBlitFramebuffer` warning floods the console.** `postprocessing`'s composer shares a depth-stencil buffer between read and write. Measured at 60fps / 18.8ms worst frame, so it is cosmetic — do not let it eat your time. Disabling MSAA does *not* fix it; the likely real fix is swapping to three's own `UnrealBloomPass`, which touches `stage.ts` and `gui.ts`.
+
 ## Padmanabh + Claude — gameplay + data
 
 1. **Stage + loop** — renderer, composer, third-person camera, fixed-step update.
@@ -58,16 +68,18 @@ The whole visual quality bet is **night Shibuya**: neon, wet asphalt, fog, heavy
 
 | Time | Target |
 | --- | --- |
-| 12:50 | Scaffold running, empty 3D scene on screen |
-| 13:20 | City block renders; player moves through it |
-| 14:00 | Crowd instanced and steering; objective loop closes (win/lose works) |
-| 14:30 | Live weather wired; rain visuals; surge event fires |
-| 15:00 | **Feature freeze.** Jun's look tuning baked in. |
-| 15:00–15:40 | Rehearse the 3-minute demo end to end, twice |
-| 15:40 | Stop touching code |
+| 12:50 | ~~Scaffold running~~ **done** |
+| 13:20 | ~~City renders, crowd instanced, courier moves, timer + surge + live weather wired~~ **done**, 60fps |
+| 14:00 | Jun's look pass landed; deployed URL confirmed working |
+| 14:30 | ai& + Daytona wired if credentials arrived; rain verified end to end |
+| 15:00 | **Feature freeze.** Jun's look tuning committed. |
+| 15:00–15:40 | Rehearse the 3-minute demo end to end, twice, **from the deployed URL** |
+| 15:40 | Stop touching code — last push to `main` is the demo |
 | 16:00 | Submit |
 
 Feature freeze at 15:00 is the important line. Anything not working by then gets cut, not debugged.
+
+Because deploys are automatic, the last green push before 15:40 is what the judges see. Do not push after that.
 
 ---
 
@@ -83,14 +95,19 @@ Judging criterion 4 is **sponsored product usage, checked at code level**. We ar
 
 ### Blocked on credentials
 
-A browser cannot hold API keys, so both calls go through the **Fastify backend** in `server/`. Vite proxies `/api/*` to it, which avoids CORS entirely. `bun dev` starts the server and the client together as one command.
+A browser cannot hold API keys, so both calls go server-side. Every route body lives once in `server/logic.ts` and is imported by both runtimes:
+
+- **Local dev** — Fastify on `:3000`, with Vite proxying `/api/*` to it (no CORS). `bun dev` starts both.
+- **Production** — `api/*.ts` Vercel Functions on the same origin as the static client. No proxy needed.
 
 Needed from the sponsor workshop before this can be wired:
 
 - **ai&** — base URL, API key, model name, and whether the API is OpenAI-compatible
 - **Daytona** — API key
 
-Keys go in `.env.local` (gitignored). Never commit them. Until they arrive, both integrations sit behind adapters with fixture responses so the game runs and the demo is rehearsable without them.
+Keys go in `.env.local` locally (gitignored) **and in the Vercel project's environment variables** for the deployed build. Setting them in one place does not set the other. Never commit them.
+
+Until they arrive, both integrations sit behind adapters returning fixtures, so the game runs and the demo is rehearsable without them.
 
 ## Git protocol
 
