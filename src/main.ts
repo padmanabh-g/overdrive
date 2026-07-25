@@ -5,6 +5,7 @@ import { createCityLighting, createRenderPipeline } from './render'
 import { feeds, isRaining, type Rail, type Weather } from './data/feeds'
 import { audio } from './audio/audio'
 import { Crowd, SQUARE } from './game/crowd'
+import { createDirector } from './game/director'
 import { Encounters } from './game/encounters'
 import { Pickups } from './game/pickups'
 import { Player } from './game/player'
@@ -55,6 +56,8 @@ scene.add(signals.group)
 const run = new Run(streets)
 scene.add(run.marker)
 
+const director = createDirector({ crowd, encounters, run, player })
+
 const minimap = new Minimap(city.colliders, streets.halfWidth, streets.halfDepth)
 
 addEventListener('resize', () => {
@@ -95,6 +98,8 @@ async function pollFeeds(): Promise<void> {
     const { line } = await feeds.narrate(nowRaining ? 'rain' : 'clear', weather)
     showNarration(line)
   }
+
+  void feeds.director(weather, rail).then((ev) => director.dispatch(ev))
 }
 
 void pollFeeds()

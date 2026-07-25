@@ -31,7 +31,7 @@ each an atomic commit that builds green (`bun run typecheck`) before push.
   parcel returns), cop ID-check (sprint-near/red-cross → `player.frozen` N s; timer
   keeps ticking = the cost; line from ai&). `player.ts`: `frozen`, `punching`, parcel
   toggle. `run.ts`: `parcelStolen`, `applyTimePenalty`, block win while stolen. `main.ts`: wire + sfx.
-- [ ] **T4 — ai& Director.** `server/logic.ts`: `directorEvent(weather, rail)` → JSON
+- [x] **T4 — ai& Director.** `server/logic.ts`: `directorEvent(weather, rail)` → JSON
   `{event, where, intensity, line}`, **validated enum + clamped intensity + deterministic
   local fallback** on any parse/network failure. `feeds.ts`: `director()` call. new
   `src/game/director.ts`: dispatch surge→`crowd.surge`, pickpocket→`spawnPickpocket`,

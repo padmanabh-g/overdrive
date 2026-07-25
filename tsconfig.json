@@ -12,5 +12,6 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src", "server", "api", "vite.config.ts"]
+  "include": ["src", "server", "api", "vite.config.ts"],
+  "exclude": ["**/*.test.ts"]
 }
